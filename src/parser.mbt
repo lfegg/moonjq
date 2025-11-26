@@ -1,16 +1,19 @@
 ///|
+/// 解析器结构体，用于维护解析状态。
 struct Parser {
-  input : String
-  mut pos : Int
-  len : Int
+  input : String // 输入字符串
+  mut pos : Int  // 当前解析位置
+  len : Int      // 输入字符串长度
 }
 
 ///|
+/// 创建一个新的解析器实例。
 fn Parser::new(input : String) -> Parser {
   { input, pos: 0, len: input.length() }
 }
 
 ///|
+/// 查看当前位置的字符，但不移动指针。
 fn Parser::peek(self : Parser) -> Char? {
   if self.pos < self.len {
     Some(self.input[self.pos].unsafe_to_char())
@@ -20,11 +23,13 @@ fn Parser::peek(self : Parser) -> Char? {
 }
 
 ///|
+/// 将解析指针向前移动一位。
 fn Parser::advance(self : Parser) -> Unit {
   self.pos = self.pos + 1
 }
 
 ///|
+/// 跳过空白字符 (空格, tab, 换行, 回车)。
 fn Parser::skip_whitespace(self : Parser) -> Unit {
   while self.pos < self.len {
     let c = self.input[self.pos].unsafe_to_char()
@@ -36,6 +41,8 @@ fn Parser::skip_whitespace(self : Parser) -> Unit {
 }
 
 ///|
+/// 解析 JSON 字符串。
+/// 处理双引号包围的字符串，支持基本的转义字符。
 fn Parser::parse_string(self : Parser) -> Result[String, String] {
   if self.peek() != Some('"') {
     return Err("Expected '\"'")
@@ -85,6 +92,8 @@ fn Parser::parse_string(self : Parser) -> Result[String, String] {
 }
 
 ///|
+/// 解析 JSON 数字。
+/// 支持整数、浮点数和科学计数法。
 fn Parser::parse_number(self : Parser) -> Result[Double, String] {
   let start = self.pos
   if self.pos < self.len && self.input[self.pos].unsafe_to_char() == '-' {
@@ -139,6 +148,7 @@ fn Parser::parse_number(self : Parser) -> Result[Double, String] {
 }
 
 ///|
+/// 检查当前位置是否匹配给定的字符串。
 fn Parser::match_string(self : Parser, s : String) -> Bool {
   let len = s.length()
   if self.pos + len > self.len {
@@ -148,6 +158,7 @@ fn Parser::match_string(self : Parser, s : String) -> Bool {
 }
 
 ///|
+/// 解析任意 JSON 值 (对象, 数组, 字符串, 布尔值, null, 数字)。
 fn Parser::parse_json_value(self : Parser) -> Result[Json, String] {
   self.skip_whitespace()
   match self.peek() {
@@ -198,6 +209,7 @@ fn Parser::parse_json_value(self : Parser) -> Result[Json, String] {
 }
 
 ///|
+/// 解析 JSON 数组。
 fn Parser::parse_array(self : Parser) -> Result[Json, String] {
   self.advance() // [
   self.skip_whitespace()
@@ -230,6 +242,7 @@ fn Parser::parse_array(self : Parser) -> Result[Json, String] {
 }
 
 ///|
+/// 解析 JSON 对象。
 fn Parser::parse_object(self : Parser) -> Result[Json, String] {
   self.advance() // {
   self.skip_whitespace()
@@ -272,23 +285,28 @@ fn Parser::parse_object(self : Parser) -> Result[Json, String] {
 }
 
 ///|
+/// 解析 JSON 字符串的入口函数。
 pub fn parse_json(input : String) -> Result[Json, String] {
   let parser = Parser::new(input)
   parser.parse_json_value()
 }
 
 ///|
+/// 解析查询字符串的入口函数。
 pub fn parse_query(input : String) -> Result[Query, String] {
   let parser = Parser::new(input)
   parser.parse_query_expr()
 }
 
 ///|
+/// 解析查询表达式。
 fn Parser::parse_query_expr(self : Parser) -> Result[Query, String] {
   self.parse_sequence()
 }
 
 ///|
+/// 解析序列操作符 (逗号)。
+/// 优先级最低。
 fn Parser::parse_sequence(self : Parser) -> Result[Query, String] {
   match self.parse_compare() {
     Ok(left) => {
@@ -308,6 +326,7 @@ fn Parser::parse_sequence(self : Parser) -> Result[Query, String] {
 }
 
 ///|
+/// 解析比较操作符 (==, !=, >, <, >=, <=)。
 fn Parser::parse_compare(self : Parser) -> Result[Query, String] {
   match self.parse_pipe() {
     Ok(left) => {
@@ -357,6 +376,7 @@ fn Parser::parse_compare(self : Parser) -> Result[Query, String] {
 }
 
 ///|
+/// 解析管道操作符 (|)。
 fn Parser::parse_pipe(self : Parser) -> Result[Query, String] {
   match self.parse_term() {
     Ok(left) => {
@@ -379,6 +399,7 @@ fn Parser::parse_pipe(self : Parser) -> Result[Query, String] {
 }
 
 ///|
+/// 解析基本项 (字段访问, 索引, 构造器, 字面量, select 等)。
 fn Parser::parse_term(self : Parser) -> Result[Query, String] {
   self.skip_whitespace()
   match self.peek() {
@@ -510,30 +531,6 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
       }
       Ok(Query::ObjectConstructor(fields))
     }
-    Some('s') => {
-      if self.match_string("select") {
-        self.pos = self.pos + 6
-        self.skip_whitespace()
-        if self.peek() == Some('(') {
-          self.advance()
-          match self.parse_query_expr() {
-            Ok(q) => {
-              if self.peek() == Some(')') {
-                self.advance()
-                Ok(Query::Select(q))
-              } else {
-                Err("Expected ')'")
-              }
-            }
-            Err(e) => Err(e)
-          }
-        } else {
-          Err("Expected '(' after select")
-        }
-      } else {
-        Err("Unexpected token starting with 's'")
-      }
-    }
     Some('"') => {
       match self.parse_string() {
         Ok(s) => Ok(Query::Literal(Json::String(s)))
@@ -546,8 +543,46 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
           Ok(n) => Ok(Query::Literal(Json::Number(n)))
           Err(e) => Err(e)
         }
+      } else if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' {
+        let start = self.pos
+        while self.pos < self.len {
+          let c = self.input[self.pos].unsafe_to_char()
+          if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' {
+            self.advance()
+          } else {
+            break
+          }
+        }
+        let ident = self.input.view(start_offset=start, end_offset=self.pos).to_string()
+        match ident {
+          "length" => Ok(Query::Length)
+          "keys" => Ok(Query::Keys)
+          "true" => Ok(Query::Literal(Json::Bool(true)))
+          "false" => Ok(Query::Literal(Json::Bool(false)))
+          "null" => Ok(Query::Literal(Json::Null))
+          "select" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              match self.parse_query_expr() {
+                Ok(q) => {
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::Select(q))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after select")
+            }
+          }
+          _ => Err("Unknown function or identifier: " + ident)
+        }
       } else {
-        Err("Unexpected token in query")
+        Err("Unexpected token in query: " + c.to_string())
       }
     }
     _ => Err("Unexpected token in query")
@@ -555,6 +590,8 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
 }
 
 ///|
+/// 解析标识符或字符串。
+/// 用于对象构造中的键名。
 fn Parser::parse_identifier_or_string(self : Parser) -> Result[String, String] {
   self.skip_whitespace()
   match self.peek() {

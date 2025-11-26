@@ -1,4 +1,5 @@
 ///|
+/// JSON 数据类型枚举。
 pub enum Json {
   Null
   Bool(Bool)
@@ -9,25 +10,30 @@ pub enum Json {
 } derive(Show, Eq)
 
 ///|
+/// 比较操作符枚举。
 pub enum Op {
-  Eq
-  Neq
-  Gt
-  Lt
-  Gte
-  Lte
+  Eq  // ==
+  Neq // !=
+  Gt  // >
+  Lt  // <
+  Gte // >=
+  Lte // <=
 } derive(Show, Eq)
 
+///|
+/// 查询 AST (抽象语法树) 枚举。
 pub enum Query {
-  Identity // .
-  Field(String) // .foo
-  Index(Int) // [0]
-  Iterator // .[]
-  Pipe(Query, Query) // q1 | q2
-  Sequence(Query, Query) // q1, q2
-  ArrayConstructor(Query) // [q]
-  ObjectConstructor(Array[(String, Query)]) // {k: v}
-  Literal(Json) // 1, "s", true
-  Binary(Op, Query, Query) // a == b
-  Select(Query) // select(q)
+  Identity // 恒等查询 '.'
+  Field(String) // 字段访问 '.foo'
+  Index(Int) // 数组索引 '[0]'
+  Iterator // 迭代器 '.[]'
+  Pipe(Query, Query) // 管道 'q1 | q2'
+  Sequence(Query, Query) // 序列 'q1, q2'
+  ArrayConstructor(Query) // 数组构造 '[q]'
+  ObjectConstructor(Array[(String, Query)]) // 对象构造 '{k: v}'
+  Literal(Json) // 字面量 '1', '"s"', 'true'
+  Binary(Op, Query, Query) // 二元操作 'a == b'
+  Select(Query) // 选择/过滤 'select(q)'
+  Length // 获取长度 'length'
+  Keys // 获取键名 'keys'
 } derive(Show, Eq)
