@@ -11,36 +11,97 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
   match query {
     // 恒等查询 '.'，直接返回输入本身
     Identity => [json]
-    
+
     // 字段访问 '.key'
-    Field(key) => {
+    Field(key) =>
       match json {
-        Object(m) => {
+        Object(m) =>
           match m.get(key) {
             Some(v) => [v]
             None => [Json::Null] // 键不存在时返回 null
           }
-        }
         _ => [Json::Null] // 非对象类型访问字段返回 null
       }
-    }
-    
+
     // 数组索引 '[idx]'
-    Index(idx) => {
+    Index(idx) =>
       match json {
-        Array(arr) => {
+        Array(arr) =>
           if idx >= 0 && idx < arr.length() {
             [arr[idx]]
           } else {
             [Json::Null] // 索引越界返回 null
           }
-        }
         _ => [Json::Null] // 非数组类型索引返回 null
       }
-    }
-    
+
+    // 切片 '[start:end]'
+    Slice(start_opt, end_opt) =>
+      match json {
+        Array(arr) => {
+          let len = arr.length()
+          // 处理负数索引和边界
+          let start = match start_opt {
+            Some(s) => if s < 0 { len + s } else { s }
+            None => 0
+          }
+          let end = match end_opt {
+            Some(e) => if e < 0 { len + e } else { e }
+            None => len
+          }
+          // 确保索引在有效范围内
+          let start = if start < 0 {
+            0
+          } else if start > len {
+            len
+          } else {
+            start
+          }
+          let end = if end < 0 { 0 } else if end > len { len } else { end }
+          // 确保 start <= end
+          let end = if end < start { start } else { end }
+          // 提取子数组
+          let result = []
+          for i = start; i < end; i = i + 1 {
+            result.push(arr[i])
+          }
+          [Json::Array(result)]
+        }
+        String(s) => {
+          let len = s.length()
+          // 处理负数索引和边界
+          let start = match start_opt {
+            Some(st) => if st < 0 { len + st } else { st }
+            None => 0
+          }
+          let end = match end_opt {
+            Some(e) => if e < 0 { len + e } else { e }
+            None => len
+          }
+          // 确保索引在有效范围内
+          let start = if start < 0 {
+            0
+          } else if start > len {
+            len
+          } else {
+            start
+          }
+          let end = if end < 0 { 0 } else if end > len { len } else { end }
+          // 确保 start <= end
+          let end = if end < start { start } else { end }
+          // 提取子字符串
+          let result = if start == end {
+            ""
+          } else {
+            s.view(start_offset=start, end_offset=end).to_string()
+          }
+          [Json::String(result)]
+        }
+        _ => [Json::Null] // 其他类型返回 null
+      }
+
     // 迭代器 '.[]'
-    Iterator => {
+    Iterator =>
       match json {
         Array(arr) => arr // 数组展开为元素序列
         Object(obj) => {
@@ -52,11 +113,44 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         }
         _ => [] // 其他类型无法迭代，返回空序列
       }
+
+    // 递归下降 '..'
+    // 返回当前值以及所有嵌套的子值
+    Recurse => {
+      fn recurse_helper(j : Json, results : Array[Json]) -> Unit {
+        results.push(j)
+        match j {
+          Array(arr) =>
+            for item in arr {
+              recurse_helper(item, results)
+            }
+          Object(obj) =>
+            for v in obj.values() {
+              recurse_helper(v, results)
+            }
+          _ => () // 基本类型没有子值
+        }
+      }
+
+      let results = []
+      recurse_helper(json, results)
+      results
     }
-    
+
+    // 可选操作符 '?'
+    // 安全访问：如果查询失败或返回空结果，返回 null 而不是报错
+    Optional(q) => {
+      let results = eval(json, q)
+      if results.length() == 0 {
+        [Json::Null] // 如果没有结果，返回 null
+      } else {
+        results // 否则返回正常结果
+      }
+    }
+
     // 字面量，如 1, "string", true
     Literal(v) => [v]
-    
+
     // 二元操作，如 ==, !=, >, <
     Binary(op, left, right) => {
       let l_res = eval(json, left)
@@ -70,7 +164,7 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
       }
       res
     }
-    
+
     // 选择/过滤 'select(cond)'
     Select(cond) => {
       let cond_res = eval(json, cond)
@@ -83,7 +177,7 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
     }
 
     // 获取长度 'length'
-    Length => {
+    Length =>
       match json {
         String(s) => [Json::Number(s.length().to_double())]
         Array(arr) => [Json::Number(arr.length().to_double())]
@@ -92,10 +186,9 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         Number(n) => [Json::Number(n)]
         _ => [Json::Null] // 其他类型返回 null (jq 会报错，这里简化处理)
       }
-    }
 
     // 获取键名 'keys'
-    Keys => {
+    Keys =>
       match json {
         Object(obj) => {
           let keys = []
@@ -105,10 +198,10 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
           // 简单的冒泡排序，确保键名有序
           for i = 0; i < keys.length(); i = i + 1 {
             for j = 0; j < keys.length() - 1 - i; j = j + 1 {
-              if keys[j] > keys[j+1] {
+              if keys[j] > keys[j + 1] {
                 let temp = keys[j]
-                keys[j] = keys[j+1]
-                keys[j+1] = temp
+                keys[j] = keys[j + 1]
+                keys[j + 1] = temp
               }
             }
           }
@@ -127,8 +220,7 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         }
         _ => [Json::Null] // 其他类型返回 null
       }
-    }
-    
+
     // 管道 '|'
     Pipe(left, right) => {
       let results = []
@@ -140,7 +232,7 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
       }
       results
     }
-    
+
     // 序列 ',' (逗号操作符)
     Sequence(left, right) => {
       let results = []
@@ -148,18 +240,21 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
       results.append(eval(json, right))
       results // 连接两个查询的结果
     }
-    
+
     // 数组构造 '[ ... ]'
     ArrayConstructor(q) => {
       let results = eval(json, q)
       [Json::Array(results)] // 将查询结果收集到一个新数组中
     }
-    
+
     // 对象构造 '{ key: val, ... }'
     ObjectConstructor(fields) => {
       // 递归函数处理对象字段的笛卡尔积组合
       // 因为每个字段的值可能是一个产生多个结果的查询
-      fn cartesian(index : Int, current_obj : Map[String, Json]) -> Array[Json] {
+      fn cartesian(
+        index : Int,
+        current_obj : Map[String, Json],
+      ) -> Array[Json] {
         if index >= fields.length() {
           return [Json::Object(current_obj)]
         }
@@ -175,6 +270,7 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         }
         results
       }
+
       cartesian(0, Map::new())
     }
   }

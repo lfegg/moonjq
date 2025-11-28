@@ -1,0 +1,63 @@
+// Generated using `moon info`, DON'T EDIT IT
+package "lfegg/moonjq/src"
+
+// Values
+fn eval(Json, Query) -> Array[Json]
+
+fn parse_json(String) -> Result[Json, String]
+
+fn parse_query(String) -> Result[Query, String]
+
+// Errors
+
+// Types and methods
+pub enum Json {
+  Null
+  Bool(Bool)
+  Number(Double)
+  String(String)
+  Array(Array[Json])
+  Object(Map[String, Json])
+}
+fn Json::to_json_string(Self) -> String
+impl Eq for Json
+impl Show for Json
+
+pub enum Op {
+  Eq
+  Neq
+  Gt
+  Lt
+  Gte
+  Lte
+}
+impl Eq for Op
+impl Show for Op
+
+type Parser
+
+pub enum Query {
+  Identity
+  Field(String)
+  Index(Int)
+  Slice(Int?, Int?)
+  Iterator
+  Recurse
+  Optional(Query)
+  Pipe(Query, Query)
+  Sequence(Query, Query)
+  ArrayConstructor(Query)
+  ObjectConstructor(Array[(String, Query)])
+  Literal(Json)
+  Binary(Op, Query, Query)
+  Select(Query)
+  Length
+  Keys
+}
+impl Eq for Query
+impl Show for Query
+
+// Type aliases
+
+// Traits
+

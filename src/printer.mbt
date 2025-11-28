@@ -1,4 +1,3 @@
-
 ///|
 fn escape_string(s : String) -> String {
   let buf = StringBuilder::new()
@@ -30,6 +29,7 @@ fn escape_string(s : String) -> String {
   buf.to_string()
 }
 
+///|
 /// 将 Json 值转换为 JSON 字符串表示。
 pub fn Json::to_json_string(self : Json) -> String {
   match self {

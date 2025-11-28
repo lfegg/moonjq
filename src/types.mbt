@@ -12,10 +12,10 @@ pub enum Json {
 ///|
 /// 比较操作符枚举。
 pub enum Op {
-  Eq  // ==
+  Eq // ==
   Neq // !=
-  Gt  // >
-  Lt  // <
+  Gt // >
+  Lt // <
   Gte // >=
   Lte // <=
 } derive(Show, Eq)
@@ -26,7 +26,10 @@ pub enum Query {
   Identity // 恒等查询 '.'
   Field(String) // 字段访问 '.foo'
   Index(Int) // 数组索引 '[0]'
+  Slice(Int?, Int?) // 切片 '[start:end]' - start 和 end 都可以省略
   Iterator // 迭代器 '.[]'
+  Recurse // 递归下降 '..'
+  Optional(Query) // 可选操作符 'q?' - 安全访问，失败返回 null
   Pipe(Query, Query) // 管道 'q1 | q2'
   Sequence(Query, Query) // 序列 'q1, q2'
   ArrayConstructor(Query) // 数组构造 '[q]'

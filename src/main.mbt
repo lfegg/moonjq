@@ -8,25 +8,22 @@ fn main {
     print_usage()
     return
   }
-
   let query_str = args[1]
   // 获取 JSON 输入：可以是直接的 JSON 字符串，也可以是文件路径
   let json_str = if args.length() >= 3 {
     let arg = args[2]
-    try {
-      // 尝试作为文件读取
-      @fs.read_file_to_string(arg)
-    } catch {
+    // 尝试作为文件读取
+    @fs.read_file_to_string(arg) catch {
       // 如果读取失败（例如不是文件），则将其视为 JSON 字符串
       _ => arg
     }
   } else {
     "{}" // 默认为空对象
   }
-  
+
   // 解析查询字符串
   match parse_query(query_str) {
-    Ok(query) => {
+    Ok(query) =>
       // 解析 JSON 输入
       match parse_json(json_str) {
         Ok(json) => {
@@ -43,7 +40,6 @@ fn main {
           @sys.exit(1)
         }
       }
-    }
     Err(e) => {
       println("Error parsing query '" + query_str + "':")
       println(e)
