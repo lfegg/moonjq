@@ -4,7 +4,12 @@ fn main {
   let args = @sys.get_cli_args()
 
   // 检查参数数量或是否请求帮助
-  if args.length() < 2 || args[1] == "-h" || args[1] == "--help" {
+  if args.length() < 2 {
+    repl()
+    return
+  }
+  
+  if args[1] == "-h" || args[1] == "--help" {
     print_usage()
     return
   }
@@ -74,4 +79,44 @@ fn print_usage() -> Unit {
     #|  moonjq ".[] | select(. > 1)" '[1, 2, 3]'
     #|
   println(usage)
+}
+
+fn repl() -> Unit {
+  println("moonjq - A lightweight JSON processor written in MoonBit")
+  println("Hint: Enter jq filters (e.g. '.', '.key', '.[0]') to query '{}'.")
+  println("Type 'exit()' to quit.")
+  while true {
+    println("moonjq> ")
+    match read_line() {
+      Some(input) => {
+        let input = input.trim(chars=" \t\r\n")
+        if input == "exit()" {
+          break
+        }
+        if input == "" {
+          continue
+        }
+        match parse_query(input.to_string()) {
+          Ok(query) => {
+            // Use empty object as default input
+            let json = Json::Object(Map::new())
+            let results = eval(json, query)
+            for res in results {
+              println(res.to_json_string())
+            }
+          }
+          Err(e) => {
+            println("Error: " + e)
+          }
+        }
+      }
+      None => break
+    }
+  }
+}
+
+fn read_line() -> String? {
+  // TODO: Implement read_line for the specific runtime.
+  // Currently returning None to prevent infinite loops if not implemented.
+  None
 }

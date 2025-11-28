@@ -2,7 +2,8 @@
   "is-main": true,
   "import": [
     "moonbitlang/x/fs",
-    "moonbitlang/x/sys"
+    "moonbitlang/x/sys",
+
   ],
   "deps": {
     "moonbitlang/x/fs": "0.4.37",
