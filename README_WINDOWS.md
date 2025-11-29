@@ -30,12 +30,40 @@ moon run src -- ".[0]" '[1, 2, 3]'
 
 ### 从文件读取 JSON
 
+moonjq 支持直接从文件读取 JSON 数据：
+
 ```powershell
-# 读取文件内容
-Get-Content test.json | moon run src -- ".name"
+# 从 test.json 文件读取并查询
+moon run src -- ".user.name" test.json
+# 输出: "Tom"
+
+# 从文件读取并进行字符串切片
+moon run src -- ".user.name | .[0:3]" test.json
+# 输出: "Tom"
+
+# 从文件读取并迭代数组
+moon run src -- ".projects | .[] | .title" test.json
+# 输出:
+# "Web App"
+# "CLI Tool"
+
+# 从文件读取并进行过滤
+moon run src -- '.user.skills | .[] | select(. != \"Java\")' test.json
+# 输出:
+# "JavaScript"
+# "Go"
+```
+
+如果提供的参数无法作为文件读取，moonjq 会将其视为 JSON 字符串进行解析。
+
+您也可以使用传统的管道方式：
+
+```powershell
+# 使用 Get-Content 读取文件
+Get-Content test.json | moon run src -- ".user.name"
 
 # 或者使用标准输入重定向
-moon run src -- ".name" < test.json
+moon run src -- ".user.name" < test.json
 ```
 
 ## Windows PowerShell 特别说明

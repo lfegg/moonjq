@@ -63,6 +63,34 @@ moon run src -- <query> [json_string | file_path]
 
 > **Windows 用户**: 如果您使用 Windows PowerShell 或 CMD，请参考 [README_WINDOWS.md](README_WINDOWS.md) 获取适合 Windows 的命令示例。
 
+### 从文件读取 JSON
+
+moonjq 支持直接从文件读取 JSON 数据：
+
+```bash
+# 从 test.json 文件读取并查询
+moon run src -- ".user.name" test.json
+# 输出: "Tom"
+
+# 从文件读取并进行复杂查询
+moon run src -- ".user.name | .[0:3]" test.json
+# 输出: "Tom"
+
+# 从文件读取并迭代数组
+moon run src -- ".projects | .[] | .title" test.json
+# 输出:
+# "Web App"
+# "CLI Tool"
+
+# 从文件读取并进行过滤
+moon run src -- ".user.skills | .[] | select(. != \"Java\")" test.json
+# 输出:
+# "JavaScript"
+# "Go"
+```
+
+如果提供的参数无法作为文件读取，moonjq 会将其视为 JSON 字符串进行解析。
+
 ### 示例
 
 #### 1. 恒等 (格式化输出)

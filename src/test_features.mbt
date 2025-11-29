@@ -1650,3 +1650,91 @@ test "last_element" {
     Err(e) => fail("JSON error: " + e)
   }
 }
+
+///|
+/// File reading tests
+test "read_from_test_json_file" {
+  // 测试从 test.json 读取数据
+  let file_content = @fs.read_file_to_string("test.json") catch {
+    _ => fail("Failed to read test.json file")
+  }
+  match parse_json(file_content) {
+    Ok(json) => {
+      let query_str = ".user.name"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"Tom\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "read_and_slice_from_file" {
+  // 测试从文件读取并进行字符串切片
+  let file_content = @fs.read_file_to_string("test.json") catch {
+    _ => fail("Failed to read test.json file")
+  }
+  match parse_json(file_content) {
+    Ok(json) => {
+      let query_str = ".user.name | .[0:3]"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"Tom\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "read_array_from_file" {
+  // 测试从文件读取数组数据
+  let file_content = @fs.read_file_to_string("test.json") catch {
+    _ => fail("Failed to read test.json file")
+  }
+  match parse_json(file_content) {
+    Ok(json) => {
+      let query_str = ".user.skills"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(
+            res,
+            content="[Array([String(\"Java\"), String(\"JavaScript\"), String(\"Go\")])]",
+          )
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "read_and_iterate_from_file" {
+  // 测试从文件读取并迭代数组
+  let file_content = @fs.read_file_to_string("test.json") catch {
+    _ => fail("Failed to read test.json file")
+  }
+  match parse_json(file_content) {
+    Ok(json) => {
+      let query_str = ".projects | .[] | .title"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"Web App\"), String(\"CLI Tool\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}

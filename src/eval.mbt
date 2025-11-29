@@ -26,12 +26,16 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
     // 数组索引 '[idx]'
     Index(idx) =>
       match json {
-        Array(arr) =>
-          if idx >= 0 && idx < arr.length() {
-            [arr[idx]]
+        Array(arr) => {
+          let len = arr.length()
+          // 处理负数索引
+          let actual_idx = if idx < 0 { len + idx } else { idx }
+          if actual_idx >= 0 && actual_idx < len {
+            [arr[actual_idx]]
           } else {
             [Json::Null] // 索引越界返回 null
           }
+        }
         _ => [Json::Null] // 非数组类型索引返回 null
       }
 
@@ -176,7 +180,28 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
                   }
                   res.push(Json::Number(result))
                 }
-                _ => res.push(Json::Null) // 非数值类型返回 null
+                // 字符串连接
+                (String(a), String(b)) if op == Add =>
+                  res.push(Json::String(a + b))
+                // 数组连接
+                (Array(a), Array(b)) if op == Add => {
+                  let result = []
+                  for item in a {
+                    result.push(item)
+                  }
+                  for item in b {
+                    result.push(item)
+                  }
+                  res.push(Json::Array(result))
+                }
+                // 对象合并
+                (Object(a), Object(b)) if op == Add => {
+                  let result = Map::new()
+                  a.each(fn(k, v) { result.set(k, v) })
+                  b.each(fn(k, v) { result.set(k, v) })
+                  res.push(Json::Object(result))
+                }
+                _ => res.push(Json::Null) // 其他类型组合或非 Add 操作返回 null
               }
           }
         }

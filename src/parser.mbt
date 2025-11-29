@@ -600,7 +600,86 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
     Some('.') => {
       let mut current = Query::Identity
       let mut first = true
-      while self.peek() == Some('.') {
+      // 修改循环条件：接受 . 或 [ 作为继续条件
+      // 这样 .field[] 和 .field[0].another 都能正确解析
+      while self.peek() == Some('.') || self.peek() == Some('[') {
+        // 如果是 [，则直接解析索引/迭代器/切片
+        // 如果是 .，则先 advance 再检查后续
+        if self.peek() == Some('[') {
+          self.advance()
+          self.skip_whitespace()
+          let suffix = if self.peek() == Some(']') {
+            self.advance()
+            Ok(Query::Iterator)
+          } else if self.peek() == Some(':') {
+            // 切片 [:end]
+            self.advance()
+            self.skip_whitespace()
+            if self.peek() == Some(']') {
+              self.advance()
+              Ok(Query::Slice(None, None)) // [:]
+            } else {
+              match self.parse_number() {
+                Ok(end) => {
+                  self.skip_whitespace()
+                  if self.peek() == Some(']') {
+                    self.advance()
+                    Ok(Query::Slice(None, Some(end.to_int())))
+                  } else {
+                    Err("Expected ']'")
+                  }
+                }
+                Err(_) => Err("Expected number or ']'")
+              }
+            }
+          } else {
+            match self.parse_number() {
+              Ok(n) => {
+                self.skip_whitespace()
+                if self.peek() == Some(']') {
+                  self.advance()
+                  Ok(Query::Index(n.to_int()))
+                } else if self.peek() == Some(':') {
+                  // 切片 [start:end] 或 [start:]
+                  self.advance()
+                  self.skip_whitespace()
+                  if self.peek() == Some(']') {
+                    self.advance()
+                    Ok(Query::Slice(Some(n.to_int()), None))
+                  } else {
+                    match self.parse_number() {
+                      Ok(end) => {
+                        self.skip_whitespace()
+                        if self.peek() == Some(']') {
+                          self.advance()
+                          Ok(Query::Slice(Some(n.to_int()), Some(end.to_int())))
+                        } else {
+                          Err("Expected ']'")
+                        }
+                      }
+                      Err(_) => Err("Expected number or ']'")
+                    }
+                  }
+                } else {
+                  Err("Expected ']' or ':'")
+                }
+              }
+              Err(_) => Err("Expected ']', number or ':'")
+            }
+          }
+          match suffix {
+            Ok(s) =>
+              if first {
+                current = s
+                first = false
+              } else {
+                current = Query::Pipe(current, s)
+              }
+            Err(e) => return Err(e)
+          }
+          continue
+        }
+        // 处理 . 开头的情况
         self.advance()
 
         // 检查是否是递归下降 '..'
@@ -723,7 +802,8 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
       self.skip_whitespace()
       if self.peek() == Some(']') {
         self.advance()
-        Ok(Query::ArrayConstructor(Query::Identity))
+        // [] 应该是空数组字面量，而不是 ArrayConstructor(Identity)
+        Ok(Query::Literal(Json::Array([])))
       } else {
         match self.parse_query_expr() {
           Ok(q) =>
@@ -781,6 +861,22 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
         Ok(s) => Ok(Query::Literal(Json::String(s)))
         Err(e) => Err(e)
       }
+    Some('-') => {
+      // 负数字面量
+      self.advance()
+      match self.peek() {
+        Some(c) =>
+          if c >= '0' && c <= '9' {
+            match self.parse_number() {
+              Ok(n) => Ok(Query::Literal(Json::Number(-n)))
+              Err(e) => Err(e)
+            }
+          } else {
+            Err("Expected number after '-'")
+          }
+        None => Err("Expected number after '-'")
+      }
+    }
     Some(c) =>
       if c >= '0' && c <= '9' {
         match self.parse_number() {
