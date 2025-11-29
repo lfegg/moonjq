@@ -41,6 +41,38 @@ fn Parser::skip_whitespace(self : Parser) -> Unit {
 }
 
 ///|
+/// 尝试解析指定的关键字。
+/// 如果当前位置的文本匹配关键字，则前进指针并返回 true，否则返回 false。
+fn Parser::parse_keyword(self : Parser, keyword : String) -> Bool {
+  let kw_len = keyword.length()
+  // 检查是否有足够的字符
+  if self.pos + kw_len > self.len {
+    return false
+  }
+  // 检查关键字是否匹配
+  let matched = self.input
+    .view(start_offset=self.pos, end_offset=self.pos + kw_len)
+    .to_string() ==
+    keyword
+  if not(matched) {
+    return false
+  }
+  // 确保关键字后面不是标识符字符（避免 "then" 匹配 "thenx"）
+  if self.pos + kw_len < self.len {
+    let next_char = self.input[self.pos + kw_len].unsafe_to_char()
+    if (next_char >= 'a' && next_char <= 'z') ||
+      (next_char >= 'A' && next_char <= 'Z') ||
+      (next_char >= '0' && next_char <= '9') ||
+      next_char == '_' {
+      return false
+    }
+  }
+  // 匹配成功，前进指针
+  self.pos = self.pos + kw_len
+  true
+}
+
+///|
 /// 解析 JSON 字符串。
 /// 处理双引号包围的字符串，支持基本的转义字符。
 fn Parser::parse_string(self : Parser) -> Result[String, String] {
@@ -623,9 +655,46 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
         match ident {
           "length" => Ok(Query::Length)
           "keys" => Ok(Query::Keys)
+          "type" => Ok(Query::Type)
           "true" => Ok(Query::Literal(Json::Bool(true)))
           "false" => Ok(Query::Literal(Json::Bool(false)))
           "null" => Ok(Query::Literal(Json::Null))
+          "if" => {
+            self.skip_whitespace()
+            match self.parse_query_expr() {
+              Ok(cond) => {
+                self.skip_whitespace()
+                // 期望 "then" 关键字
+                if not(self.parse_keyword("then")) {
+                  return Err("Expected 'then' after if condition")
+                }
+                self.skip_whitespace()
+                match self.parse_query_expr() {
+                  Ok(then_expr) => {
+                    self.skip_whitespace()
+                    // 期望 "else" 关键字
+                    if not(self.parse_keyword("else")) {
+                      return Err("Expected 'else' after then expression")
+                    }
+                    self.skip_whitespace()
+                    match self.parse_query_expr() {
+                      Ok(else_expr) => {
+                        self.skip_whitespace()
+                        // 期望 "end" 关键字
+                        if not(self.parse_keyword("end")) {
+                          return Err("Expected 'end' to close if expression")
+                        }
+                        Ok(Query::IfThenElse(cond, then_expr, else_expr))
+                      }
+                      Err(e) => Err(e)
+                    }
+                  }
+                  Err(e) => Err(e)
+                }
+              }
+              Err(e) => Err(e)
+            }
+          }
           "select" => {
             self.skip_whitespace()
             if self.peek() == Some('(') {
@@ -642,6 +711,269 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
               }
             } else {
               Err("Expected '(' after select")
+            }
+          }
+          "has" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              self.skip_whitespace()
+              match self.parse_string() {
+                Ok(key) => {
+                  self.skip_whitespace()
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::Has(key))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after has")
+            }
+          }
+          "in" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              match self.parse_query_expr() {
+                Ok(q) =>
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::In(q))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after in")
+            }
+          }
+          "map" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              match self.parse_query_expr() {
+                Ok(q) =>
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::Map(q))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after map")
+            }
+          }
+          "add" => Ok(Query::Add)
+          "min" => Ok(Query::Min)
+          "max" => Ok(Query::Max)
+          "sort" => Ok(Query::Sort)
+          "sort_by" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              match self.parse_query_expr() {
+                Ok(q) =>
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::SortBy(q))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after sort_by")
+            }
+          }
+          "group_by" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              match self.parse_query_expr() {
+                Ok(q) =>
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::GroupBy(q))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after group_by")
+            }
+          }
+          "unique" => Ok(Query::Unique)
+          "unique_by" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              match self.parse_query_expr() {
+                Ok(q) =>
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::UniqueBy(q))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after unique_by")
+            }
+          }
+          "split" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              self.skip_whitespace()
+              match self.parse_string() {
+                Ok(sep) => {
+                  self.skip_whitespace()
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::Split(sep))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after split")
+            }
+          }
+          "join" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              self.skip_whitespace()
+              match self.parse_string() {
+                Ok(sep) => {
+                  self.skip_whitespace()
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::Join(sep))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after join")
+            }
+          }
+          "startswith" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              self.skip_whitespace()
+              match self.parse_string() {
+                Ok(prefix) => {
+                  self.skip_whitespace()
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::StartsWith(prefix))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after startswith")
+            }
+          }
+          "endswith" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              self.skip_whitespace()
+              match self.parse_string() {
+                Ok(suffix) => {
+                  self.skip_whitespace()
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::EndsWith(suffix))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after endswith")
+            }
+          }
+          "contains" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              self.skip_whitespace()
+              match self.parse_string() {
+                Ok(substr) => {
+                  self.skip_whitespace()
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::Contains(substr))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after contains")
+            }
+          }
+          "ltrimstr" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              self.skip_whitespace()
+              match self.parse_string() {
+                Ok(prefix) => {
+                  self.skip_whitespace()
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::LTrimStr(prefix))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after ltrimstr")
+            }
+          }
+          "rtrimstr" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              self.skip_whitespace()
+              match self.parse_string() {
+                Ok(suffix) => {
+                  self.skip_whitespace()
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::RTrimStr(suffix))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after rtrimstr")
             }
           }
           _ => Err("Unknown function or identifier: " + ident)

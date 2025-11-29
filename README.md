@@ -18,6 +18,11 @@ MoonJQ 是一个使用 [MoonBit](https://github.com/moonbitlang/moonbit) 编写�
   - **选择**: `select(. > 10)` (基于条件过滤值)
   - **构造**: `[ .foo, .bar ]`, `{ "a": .foo }`
   - **比较**: `==`, `!=`, `>`, `<`, `>=`, `<=`
+  - **类型检查**: `type`, `has(key)`, `in(array)`
+  - **工具函数**: `length`, `keys`
+  - **数组操作**: `map(expr)`, `add`, `min`, `max`, `sort`, `sort_by(expr)`, `group_by(expr)`, `unique`, `unique_by(expr)`
+  - **字符串操作**: `split(sep)`, `join(sep)`, `startswith(str)`, `endswith(str)`, `contains(str)`, `ltrimstr(str)`, `rtrimstr(str)`
+  - **条件表达式**: `if-then-else-end`
 
 ## 安装与构建
 
@@ -52,15 +57,7 @@ moon run src -- <query> [json_string | file_path]
 
 > **关于 `--`**: 命令中的 `--` 是必须的。它用于告诉 `moon` 构建工具，后面的参数不是给 `moon` 自己的，而是要传递给正在运行的程序 (`moonjq`) 的。
 
-### Windows CMD 用户注意
-
-在 Windows CMD (命令提示符) 中，**不能**使用单引号 `'` 来包围 JSON 字符串。必须使用双引号 `"`，并且 JSON 内部的双引号需要使用反斜杠 `\` 转义。
-
-**CMD 示例:**
-
-```cmd
-moon run src -- ".name" "{\"name\": \"MoonBit\"}"
-```
+> **Windows 用户**: 如果您使用 Windows PowerShell 或 CMD，请参考 [README_WINDOWS.md](README_WINDOWS.md) 获取适合 Windows 的命令示例。
 
 ### 示例
 
@@ -68,8 +65,6 @@ moon run src -- ".name" "{\"name\": \"MoonBit\"}"
 
 ```bash
 moon run src -- "." '{"a": 1, "b": 2}'
-or
-moon run src -- "." '{\"a\": 1, \"b\": 2}'
 # 输出: {"a": 1, "b": 2}
 ```
 
@@ -77,8 +72,6 @@ moon run src -- "." '{\"a\": 1, \"b\": 2}'
 
 ```bash
 moon run src -- ".name" '{"name": "MoonBit", "type": "Language"}'
-or
-moon run src -- ".name" '{\"name\": \"MoonBit\", \"type\": \"Language\"}'
 # 输出: "MoonBit"
 ```
 
@@ -119,9 +112,7 @@ moon run src -- ".user.skills | .[1:]" test.json
 #### 4. 数组迭代与过滤
 
 ```bash
-moon run src -- ".[] | select(. > 1)" '[1, 2, 3]'
-or
-moon run src -- '.[] | select(. > 1)' '[1,2,3]'
+moon run src -- '.[] | select(. > 1)' '[1, 2, 3]'
 # 输出:
 # 2
 # 3
@@ -130,9 +121,7 @@ moon run src -- '.[] | select(. > 1)' '[1,2,3]'
 #### 5. 链式操作与对象构造
 
 ```bash
-moon run src -- ".users | .[] | { user: .name }" '{"users": [{"name": "Alice"}, {"name": "Bob"}]}'
-or
-moon run src -- '.users | .[] | { user: .name }' '{\"users\": [{\"name\": \"Alice\"}, {\"name\": \"Bob\"}]}'
+moon run src -- '.users | .[] | { user: .name }' '{"users": [{"name": "Alice"}, {"name": "Bob"}]}'
 # 输出:
 # {"user": "Alice"}
 # {"user": "Bob"}
@@ -152,9 +141,7 @@ moon run src -- ".." '[1, [2, 3], 4]'
 # 3
 # 4
 
-moon run src -- ".." '{"a": {"b": 1}, "c": 2}'
-or
-moon run src -- ".." '{\"a\": {\"b\": 1}, \"c\": 2}'
+moon run src -- '..' '{"a": {"b": 1}, "c": 2}'
 # 输出:
 # {"a": {"b": 1}, "c": 2}
 # {"b": 1}
@@ -165,9 +152,7 @@ moon run src -- ".." '{\"a\": {\"b\": 1}, \"c\": 2}'
 结合 `select` 可以递归搜索满足条件的值：
 
 ```bash
-moon run src -- ".. | select(. > 20)" '{"users": [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]}'
-or
-moon run src -- '.. | select(. > 20)' '{\"users\": [{\"name\": \"Alice\", \"age\": 30}, {\"name\": \"Bob\", \"age\": 25}]}'
+moon run src -- '.. | select(. > 20)' '{"users": [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]}'
 # 输出:
 # 30
 # 25
@@ -179,15 +164,11 @@ moon run src -- '.. | select(. > 20)' '{\"users\": [{\"name\": \"Alice\", \"age\
 
 ```bash
 # 访问不存在的字段
-moon run src -- ".c?" '{"a": 1, "b": 2}'
-or
-moon run src -- ".c?" '{\"a\": 1, \"b\": 2}'
+moon run src -- '.c?' '{"a": 1, "b": 2}'
 # 输出: null
 
 # 正常访问时返回实际值
-moon run src -- ".a?" '{"a": 1, "b": 2}'
-or
-moon run src -- ".a?" '{\"a\": 1, \"b\": 2}'
+moon run src -- '.a?' '{"a": 1, "b": 2}'
 # 输出: 1
 
 # 索引越界
@@ -199,22 +180,69 @@ moon run src -- ".[]?" "5"
 # 输出: null
 
 # 链式访问中的安全访问
-moon run src -- ".a.b.c?" '{"a": {"b": {"x": 1}}}'
-or
-moon run src -- ".a.b.c?" '{\"a\": {\"b\": {\"x\": 1}}}'
+moon run src -- '.a.b.c?' '{"a": {"b": {"x": 1}}}'
 # 输出: null (因为 b 没有 c 字段)
 ```
 
-#### 8. 复杂查询
+#### 8. 类型检查函数
+
+**type** - 返回值的类型：
 
 ```bash
-moon run src -- ".data | .[] | select(.id == 1) | .value" '{"data": [{"id": 1, "value": "found"}, {"id": 2, "value": "lost"}]}'
-or
-moon run src -- '.data | .[] | select(.id == 1) | .value' '{\"data\": [{\"id\": 1, \"value\": \"found\"}, {\"id\": 2, \"value\": \"lost\"}]}'
+moon run src -- "type" "[1, 2, 3]"
+# 输出: "array"
+
+moon run src -- ".user | type" test.json
+# 输出: "object"
+
+moon run src -- ".user.age | type" test.json
+# 输出: "number"
+
+# 结合管道检查多个值的类型
+moon run src -- ".user.skills | .[] | type" test.json
+# 输出:
+# "string"
+# "string"
+# "string"
+```
+
+**has(key)** - 检查对象是否有指定的键：
+
+```bash
+moon run src -- '.user | has("name")' test.json
+# 输出: true
+
+moon run src -- '.user | has("email")' test.json
+# 输出: false
+
+# 过滤有特定键的对象
+moon run src -- '.projects | .[] | select(has("stars"))' test.json
+# 输出: {"title": "Web App", "stars": 120}
+#       {"title": "CLI Tool", "stars": 80}
+```
+
+**in(array)** - 检查值是否在数组中：
+
+```bash
+moon run src -- 'in([1, 2, 3])' "2"
+# 输出: true
+
+moon run src -- 'in([1, 2, 3])' "5"
+# 输出: false
+
+# 检查字符串是否在列表中
+moon run src -- 'in(["apple", "banana", "orange"])' '"banana"'
+# 输出: true
+```
+
+#### 9. 复杂查询
+
+```bash
+moon run src -- '.data | .[] | select(.id == 1) | .value' '{"data": [{"id": 1, "value": "found"}, {"id": 2, "value": "lost"}]}'
 # 输出: "found"
 ```
 
-#### 9. 读取文件
+#### 10. 读取文件
 
 可以直接传递文件路径作为第二个参数：
 
@@ -224,21 +252,151 @@ moon run src -- ".user.name" test.json
 # 输出: "Tom"
 ```
 
-#### 10. 数组索引与嵌套访问
+#### 11. 数组索引与嵌套访问
 
 ```bash
 moon run src -- ".[1]" '[1, 2, 3, 4, 5]'
 # 输出: 2
 
-moon run src -- ".[1]" '["first", "second", "third"]'
-or
-moon run src -- ".[1]" '[\"first\", \"second\", \"third\"]'
+moon run src -- '.[1]' '["first", "second", "third"]'
 # 输出: "second"
 
-moon run src -- ".[0].name" '[{"name": "Alice"}, {"name": "Bob"}]'
-or
-moon run src -- ".[0].name" '[{\"name\": \"Alice\"}, {\"name\": \"Bob\"}]'
+moon run src -- '.[0].name' '[{"name": "Alice"}, {"name": "Bob"}]'
 # 输出: "Alice"
+```
+
+#### 12. 数组操作
+
+```bash
+# map - 对每个元素应用表达式
+moon run src -- 'map(.x)' '[{"x": 1}, {"x": 2}, {"x": 3}]'
+# 输出: [1, 2, 3]
+
+# add - 累加数字、拼接字符串或合并数组
+moon run src -- "add" '[1, 2, 3, 4]'
+# 输出: 10
+
+moon run src -- 'add' '["hello", " ", "world"]'
+# 输出: "hello world"
+
+moon run src -- "add" '[[1, 2], [3, 4]]'
+# 输出: [1, 2, 3, 4]
+
+# min / max - 找最小值/最大值
+moon run src -- "min" '[3, 1, 4, 1, 5]'
+# 输出: 1
+
+moon run src -- "max" '[3, 1, 4, 1, 5]'
+# 输出: 5
+
+# sort - 排序数组
+moon run src -- "sort" '[3, 1, 4, 1, 5, 9, 2]'
+# 输出: [1, 1, 2, 3, 4, 5, 9]
+
+# sort_by - 按表达式结果排序
+moon run src -- 'sort_by(.age)' '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]'
+# 输出: [{"name": "Bob", "age": 25}, {"name": "Alice", "age": 30}]
+
+# group_by - 按表达式结果分组
+moon run src -- 'group_by(.type)' '[{"type": "fruit", "name": "apple"}, {"type": "fruit", "name": "banana"}, {"type": "vegetable", "name": "carrot"}]'
+# 输出: [[{"type": "fruit", "name": "apple"}, {"type": "fruit", "name": "banana"}], [{"type": "vegetable", "name": "carrot"}]]
+
+# unique - 去重
+moon run src -- "unique" '[1, 2, 2, 3, 1, 4, 3]'
+# 输出: [1, 2, 3, 4]
+
+# unique_by - 按表达式结果去重
+moon run src -- 'unique_by(.age)' '[{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}, {"name": "Charlie", "age": 30}]'
+# 输出: [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}]
+```
+
+#### 13. 字符串操作
+
+```bash
+# split - 按分隔符分割字符串
+moon run src -- 'split(",")' '"a,b,c,d"'
+# 输出: ["a", "b", "c", "d"]
+
+moon run src -- 'split("")' '"abc"'
+# 输出: ["a", "b", "c"]
+
+# join - 用分隔符连接数组元素
+moon run src -- 'join(",")' '["a", "b", "c"]'
+# 输出: "a,b,c"
+
+moon run src -- 'join(" - ")' '["hello", "world"]'
+# 输出: "hello - world"
+
+# startswith - 检查是否以指定前缀开始
+moon run src -- 'startswith("hello")' '"hello world"'
+# 输出: true
+
+moon run src -- 'startswith("world")' '"hello world"'
+# 输出: false
+
+# endswith - 检查是否以指定后缀结束
+moon run src -- 'endswith("world")' '"hello world"'
+# 输出: true
+
+moon run src -- 'endswith("hello")' '"hello world"'
+# 输出: false
+
+# contains - 检查是否包含子串
+moon run src -- 'contains("lo wo")' '"hello world"'
+# 输出: true
+
+moon run src -- 'contains("xyz")' '"hello world"'
+# 输出: false
+
+# ltrimstr - 去除左侧前缀
+moon run src -- 'ltrimstr("hello ")' '"hello world"'
+# 输出: "world"
+
+moon run src -- 'ltrimstr("world")' '"hello world"'
+# 输出: "hello world"  # 不匹配，返回原字符串
+
+# rtrimstr - 去除右侧后缀
+moon run src -- 'rtrimstr(" world")' '"hello world"'
+# 输出: "hello"
+
+moon run src -- 'rtrimstr("hello")' '"hello world"'
+# 输出: "hello world"  # 不匹配，返回原字符串
+```
+
+#### 14. 条件表达式
+
+```bash
+# if-then-else-end - 条件分支
+moon run src -- 'if . > 5 then \"large\" else \"small\" end' "10"
+# 输出: "large"
+
+moon run src -- 'if . > 5 then \"large\" else \"small\" end' "3"
+# 输出: "small"
+
+# 使用类型检查
+moon run src -- 'if type == \"string\" then . else \"not a string\" end' '\"hello\"'
+# 输出: "hello"
+
+moon run src -- 'if type == \"string\" then . else \"not a string\" end' "123"
+# 输出: "not a string"
+
+# 检查字段
+moon run src -- 'if .age >= 18 then \"adult\" else \"minor\" end' '{"age": 25}'
+# 输出: "adult"
+
+# null 和 false 是假值
+moon run src -- 'if . then \"has value\" else \"null value\" end' "null"
+# 输出: "null value"
+
+moon run src -- 'if . then \"true\" else \"false\" end' "false"
+# 输出: "false"
+
+# 其他所有值都是真值（包括 0、空字符串、空数组）
+moon run src -- 'if . then \"true\" else \"false\" end' "0"
+# 输出: "true"
+
+moon run src -- 'if . then \"true\" else \"false\" end' '\"\"'
+# 输出: "true"
 ```
 
 ## 项目结构

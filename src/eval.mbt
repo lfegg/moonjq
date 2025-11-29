@@ -221,6 +221,55 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         _ => [Json::Null] // 其他类型返回 null
       }
 
+    // 获取类型 'type'
+    Type =>
+      match json {
+        Null => [Json::String("null")]
+        Bool(_) => [Json::String("boolean")]
+        Number(_) => [Json::String("number")]
+        String(_) => [Json::String("string")]
+        Array(_) => [Json::String("array")]
+        Object(_) => [Json::String("object")]
+      }
+
+    // 检查对象是否有指定键 'has(key)'
+    Has(key) =>
+      match json {
+        Object(obj) => [Json::Bool(obj.contains(key))]
+        _ => [Json::Bool(false)] // 非对象类型始终返回 false
+      }
+
+    // 检查值是否在数组中 'in(array)'
+    In(array_query) => {
+      let array_results = eval(json, array_query)
+      // 对于每个查询结果（应该是数组），检查当前值是否在其中
+      for array_val in array_results {
+        match array_val {
+          Array(arr) =>
+            for item in arr {
+              if item == json {
+                return [Json::Bool(true)]
+              }
+            }
+          _ => ()
+        }
+      }
+      [Json::Bool(false)]
+    }
+
+    // 条件表达式 'if cond then expr1 else expr2 end'
+    IfThenElse(cond, then_expr, else_expr) => {
+      let cond_results = eval(json, cond)
+      // 如果条件为真（任何一个结果为真值），执行 then 分支
+      for c in cond_results {
+        if is_truthy(c) {
+          return eval(json, then_expr)
+        }
+      }
+      // 否则执行 else 分支
+      eval(json, else_expr)
+    }
+
     // 管道 '|'
     Pipe(left, right) => {
       let results = []
@@ -273,11 +322,426 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
 
       cartesian(0, Map::new())
     }
+
+    // 数组操作：map(expr) - 对数组的每个元素应用表达式
+    Map(expr) =>
+      match json {
+        Array(arr) => {
+          let results = []
+          for item in arr {
+            let item_results = eval(item, expr)
+            results.append(item_results)
+          }
+          [Json::Array(results)]
+        }
+        _ => [Json::Null] // 非数组类型返回 null
+      }
+
+    // 数组操作：add - 累加数组元素（数字求和，字符串拼接，数组连接）
+    Add =>
+      match json {
+        Array(arr) => {
+          if arr.length() == 0 {
+            return [Json::Null]
+          }
+          // 根据第一个元素的类型决定累加方式
+          match arr[0] {
+            Number(_) => {
+              let mut sum = 0.0
+              for item in arr {
+                match item {
+                  Number(n) => sum = sum + n
+                  _ => () // 忽略非数字
+                }
+              }
+              [Json::Number(sum)]
+            }
+            String(_) => {
+              let mut concat = ""
+              for item in arr {
+                match item {
+                  String(s) => concat = concat + s
+                  _ => () // 忽略非字符串
+                }
+              }
+              [Json::String(concat)]
+            }
+            Array(_) => {
+              let result = []
+              for item in arr {
+                match item {
+                  Array(sub) =>
+                    for elem in sub {
+                      result.push(elem)
+                    }
+                  _ => () // 忽略非数组
+                }
+              }
+              [Json::Array(result)]
+            }
+            _ => [Json::Null] // 不支持的类型
+          }
+        }
+        _ => [Json::Null] // 非数组类型返回 null
+      }
+
+    // 数组操作：min - 找最小值
+    Min =>
+      match json {
+        Array(arr) => {
+          if arr.length() == 0 {
+            return [Json::Null]
+          }
+          let mut min_val = arr[0]
+          for i = 1; i < arr.length(); i = i + 1 {
+            if compare_values(arr[i], min_val) < 0 {
+              min_val = arr[i]
+            }
+          }
+          [min_val]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组操作：max - 找最大值
+    Max =>
+      match json {
+        Array(arr) => {
+          if arr.length() == 0 {
+            return [Json::Null]
+          }
+          let mut max_val = arr[0]
+          for i = 1; i < arr.length(); i = i + 1 {
+            if compare_values(arr[i], max_val) > 0 {
+              max_val = arr[i]
+            }
+          }
+          [max_val]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组操作：sort - 排序
+    Sort =>
+      match json {
+        Array(arr) => {
+          let sorted = []
+          for item in arr {
+            sorted.push(item)
+          }
+          // 冒泡排序
+          for i = 0; i < sorted.length(); i = i + 1 {
+            for j = 0; j < sorted.length() - 1 - i; j = j + 1 {
+              if compare_values(sorted[j], sorted[j + 1]) > 0 {
+                let temp = sorted[j]
+                sorted[j] = sorted[j + 1]
+                sorted[j + 1] = temp
+              }
+            }
+          }
+          [Json::Array(sorted)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组操作：sort_by(expr) - 按表达式结果排序
+    SortBy(expr) =>
+      match json {
+        Array(arr) => {
+          // 创建 (原值, 排序键) 的配对数组
+          let pairs : Array[(Json, Json)] = []
+          for item in arr {
+            let key_results = eval(item, expr)
+            let key = if key_results.length() > 0 {
+              key_results[0]
+            } else {
+              Json::Null
+            }
+            pairs.push((item, key))
+          }
+          // 冒泡排序
+          for i = 0; i < pairs.length(); i = i + 1 {
+            for j = 0; j < pairs.length() - 1 - i; j = j + 1 {
+              let (_, key1) = pairs[j]
+              let (_, key2) = pairs[j + 1]
+              if compare_values(key1, key2) > 0 {
+                let temp = pairs[j]
+                pairs[j] = pairs[j + 1]
+                pairs[j + 1] = temp
+              }
+            }
+          }
+          // 提取排序后的原值
+          let sorted = []
+          for pair in pairs {
+            let (val, _) = pair
+            sorted.push(val)
+          }
+          [Json::Array(sorted)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组操作：group_by(expr) - 按表达式结果分组
+    GroupBy(expr) =>
+      match json {
+        Array(arr) => {
+          // 使用 Map 来分组，键是表达式结果，值是元素数组
+          let groups : Map[String, Array[Json]] = Map::new()
+          for item in arr {
+            let key_results = eval(item, expr)
+            let key = if key_results.length() > 0 {
+              // 将键转换为字符串用于分组
+              match key_results[0] {
+                String(s) => s
+                Number(n) => n.to_string()
+                Bool(b) => b.to_string()
+                Null => "null"
+                _ => "complex" // 数组和对象统一归为一组
+              }
+            } else {
+              "null"
+            }
+            match groups.get(key) {
+              Some(group) => group.push(item)
+              None => {
+                let new_group = []
+                new_group.push(item)
+                groups.set(key, new_group)
+              }
+            }
+          }
+          // 将分组结果转换为数组的数组
+          let result = []
+          for group in groups.values() {
+            result.push(Json::Array(group))
+          }
+          [Json::Array(result)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组操作：unique - 去重
+    Unique =>
+      match json {
+        Array(arr) => {
+          let seen = []
+          let result = []
+          for item in arr {
+            let mut found = false
+            for s in seen {
+              if s == item {
+                found = true
+                break
+              }
+            }
+            if not(found) {
+              seen.push(item)
+              result.push(item)
+            }
+          }
+          [Json::Array(result)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组操作：unique_by(expr) - 按表达式结果去重
+    UniqueBy(expr) =>
+      match json {
+        Array(arr) => {
+          let seen_keys = []
+          let result = []
+          for item in arr {
+            let key_results = eval(item, expr)
+            let key = if key_results.length() > 0 {
+              key_results[0]
+            } else {
+              Json::Null
+            }
+            let mut found = false
+            for sk in seen_keys {
+              if sk == key {
+                found = true
+                break
+              }
+            }
+            if not(found) {
+              seen_keys.push(key)
+              result.push(item)
+            }
+          }
+          [Json::Array(result)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 字符串操作：split(sep) - 按分隔符分割字符串
+    Split(sep) =>
+      match json {
+        String(s) => {
+          let parts = []
+          if sep == "" {
+            // 空分隔符：分割为字符数组
+            for i = 0; i < s.length(); i = i + 1 {
+              parts.push(
+                Json::String(
+                  s.view(start_offset=i, end_offset=i + 1).to_string(),
+                ),
+              )
+            }
+          } else {
+            // 非空分隔符：按分隔符分割
+            let mut start = 0
+            let sep_len = sep.length()
+            for i = 0; i <= s.length() - sep_len; i = i + 1 {
+              let substr = s
+                .view(start_offset=i, end_offset=i + sep_len)
+                .to_string()
+              if substr == sep {
+                parts.push(
+                  Json::String(
+                    s.view(start_offset=start, end_offset=i).to_string(),
+                  ),
+                )
+                start = i + sep_len
+                continue i + sep_len
+              }
+            }
+            // 添加最后一部分
+            parts.push(Json::String(s.view(start_offset=start).to_string()))
+          }
+          [Json::Array(parts)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 字符串操作：join(sep) - 用分隔符连接数组元素
+    Join(sep) =>
+      match json {
+        Array(arr) => {
+          let mut result = ""
+          for i = 0; i < arr.length(); i = i + 1 {
+            match arr[i] {
+              String(s) => {
+                result = result + s
+                if i < arr.length() - 1 {
+                  result = result + sep
+                }
+              }
+              _ => () // 忽略非字符串元素
+            }
+          }
+          [Json::String(result)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 字符串操作：startswith(prefix) - 检查是否以指定前缀开始
+    StartsWith(prefix) =>
+      match json {
+        String(s) => {
+          let prefix_len = prefix.length()
+          if s.length() >= prefix_len {
+            let start_part = s
+              .view(start_offset=0, end_offset=prefix_len)
+              .to_string()
+            [Json::Bool(start_part == prefix)]
+          } else {
+            [Json::Bool(false)]
+          }
+        }
+        _ => [Json::Bool(false)]
+      }
+
+    // 字符串操作：endswith(suffix) - 检查是否以指定后缀结束
+    EndsWith(suffix) =>
+      match json {
+        String(s) => {
+          let suffix_len = suffix.length()
+          if s.length() >= suffix_len {
+            let end_part = s
+              .view(start_offset=s.length() - suffix_len)
+              .to_string()
+            [Json::Bool(end_part == suffix)]
+          } else {
+            [Json::Bool(false)]
+          }
+        }
+        _ => [Json::Bool(false)]
+      }
+
+    // 字符串操作：contains(substr) - 检查是否包含子串
+    Contains(substr) =>
+      match json {
+        String(s) => {
+          let substr_len = substr.length()
+          let mut found = false
+          for i = 0; i <= s.length() - substr_len; i = i + 1 {
+            let part = s
+              .view(start_offset=i, end_offset=i + substr_len)
+              .to_string()
+            if part == substr {
+              found = true
+              break
+            }
+          }
+          [Json::Bool(found)]
+        }
+        _ => [Json::Bool(false)]
+      }
+
+    // 字符串操作：ltrimstr(prefix) - 去除左侧前缀
+    LTrimStr(prefix) =>
+      match json {
+        String(s) => {
+          let prefix_len = prefix.length()
+          if s.length() >= prefix_len {
+            let start_part = s
+              .view(start_offset=0, end_offset=prefix_len)
+              .to_string()
+            if start_part == prefix {
+              [Json::String(s.view(start_offset=prefix_len).to_string())]
+            } else {
+              [json] // 不匹配，返回原字符串
+            }
+          } else {
+            [json] // 字符串太短，返回原字符串
+          }
+        }
+        _ => [Json::Null]
+      }
+
+    // 字符串操作：rtrimstr(suffix) - 去除右侧后缀
+    RTrimStr(suffix) =>
+      match json {
+        String(s) => {
+          let suffix_len = suffix.length()
+          if s.length() >= suffix_len {
+            let end_part = s
+              .view(start_offset=s.length() - suffix_len)
+              .to_string()
+            if end_part == suffix {
+              [
+                Json::String(
+                  s
+                  .view(start_offset=0, end_offset=s.length() - suffix_len)
+                  .to_string(),
+                ),
+              ]
+            } else {
+              [json] // 不匹配，返回原字符串
+            }
+          } else {
+            [json] // 字符串太短，返回原字符串
+          }
+        }
+        _ => [Json::Null]
+      }
   }
 }
 
 ///|
-/// 判断 JSON 值是否为“真值”。
+/// 判断 JSON 值是否为"真值"。
 /// 在 jq 中，只有 false 和 null 是假值，其他（包括 0, "", []）都是真值。
 fn is_truthy(j : Json) -> Bool {
   match j {

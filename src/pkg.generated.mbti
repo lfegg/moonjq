@@ -53,6 +53,26 @@ pub enum Query {
   Select(Query)
   Length
   Keys
+  Type
+  Has(String)
+  In(Query)
+  Map(Query)
+  Add
+  Min
+  Max
+  Sort
+  SortBy(Query)
+  GroupBy(Query)
+  Unique
+  UniqueBy(Query)
+  Split(String)
+  Join(String)
+  StartsWith(String)
+  EndsWith(String)
+  Contains(String)
+  LTrimStr(String)
+  RTrimStr(String)
+  IfThenElse(Query, Query, Query)
 }
 impl Eq for Query
 impl Show for Query
