@@ -151,15 +151,34 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
     // 字面量，如 1, "string", true
     Literal(v) => [v]
 
-    // 二元操作，如 ==, !=, >, <
+    // 二元操作，如 ==, !=, >, <, +, -, *, /
     Binary(op, left, right) => {
       let l_res = eval(json, left)
       let r_res = eval(json, right)
       let res = []
-      // 笛卡尔积：左侧每个结果与右侧每个结果进行比较
+      // 笛卡尔积：左侧每个结果与右侧每个结果进行操作
       for l in l_res {
         for r in r_res {
-          res.push(Json::Bool(compare(op, l, r)))
+          match op {
+            // 比较操作符返回布尔值
+            Eq | Neq | Gt | Lt | Gte | Lte =>
+              res.push(Json::Bool(compare(op, l, r)))
+            // 算术操作符返回数值或null
+            Add | Sub | Mul | Div =>
+              match (l, r) {
+                (Number(a), Number(b)) => {
+                  let result = match op {
+                    Add => a + b
+                    Sub => a - b
+                    Mul => a * b
+                    Div => if b == 0.0 { 0.0 / 0.0 } else { a / b } // NaN for division by zero
+                    _ => 0.0 // unreachable
+                  }
+                  res.push(Json::Number(result))
+                }
+                _ => res.push(Json::Null) // 非数值类型返回 null
+              }
+          }
         }
       }
       res
@@ -761,6 +780,7 @@ fn compare(op : Op, l : Json, r : Json) -> Bool {
     Lt => compare_values(l, r) < 0
     Gte => compare_values(l, r) >= 0
     Lte => compare_values(l, r) <= 0
+    Add | Sub | Mul | Div => false // 算术操作符不应该在这里调用
   }
 }
 

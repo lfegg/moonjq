@@ -355,48 +355,120 @@ fn Parser::parse_sequence(self : Parser) -> Result[Query, String] {
 ///|
 /// 解析比较操作符 (==, !=, >, <, >=, <=)。
 fn Parser::parse_compare(self : Parser) -> Result[Query, String] {
-  match self.parse_pipe() {
+  match self.parse_add_sub() {
     Ok(left) => {
       self.skip_whitespace()
       if self.match_string("==") {
         self.pos = self.pos + 2
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Eq, left, right))
           Err(e) => Err(e)
         }
       } else if self.match_string("!=") {
         self.pos = self.pos + 2
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Neq, left, right))
           Err(e) => Err(e)
         }
       } else if self.match_string(">=") {
         self.pos = self.pos + 2
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Gte, left, right))
           Err(e) => Err(e)
         }
       } else if self.match_string("<=") {
         self.pos = self.pos + 2
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Lte, left, right))
           Err(e) => Err(e)
         }
       } else if self.peek() == Some('>') {
         self.advance()
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Gt, left, right))
           Err(e) => Err(e)
         }
       } else if self.peek() == Some('<') {
         self.advance()
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Lt, left, right))
           Err(e) => Err(e)
         }
       } else {
         Ok(left)
       }
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+/// 解析加法和减法操作符 (+, -)。
+fn Parser::parse_add_sub(self : Parser) -> Result[Query, String] {
+  match self.parse_mul_div() {
+    Ok(left) => {
+      let mut current = left
+      self.skip_whitespace()
+      while true {
+        if self.peek() == Some('+') {
+          self.advance()
+          match self.parse_mul_div() {
+            Ok(right) => {
+              current = Query::Binary(Op::Add, current, right)
+              self.skip_whitespace()
+            }
+            Err(e) => return Err(e)
+          }
+        } else if self.peek() == Some('-') {
+          self.advance()
+          match self.parse_mul_div() {
+            Ok(right) => {
+              current = Query::Binary(Op::Sub, current, right)
+              self.skip_whitespace()
+            }
+            Err(e) => return Err(e)
+          }
+        } else {
+          break
+        }
+      }
+      Ok(current)
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+/// 解析乘法和除法操作符 (*, /)。
+fn Parser::parse_mul_div(self : Parser) -> Result[Query, String] {
+  match self.parse_pipe() {
+    Ok(left) => {
+      let mut current = left
+      self.skip_whitespace()
+      while true {
+        if self.peek() == Some('*') {
+          self.advance()
+          match self.parse_pipe() {
+            Ok(right) => {
+              current = Query::Binary(Op::Mul, current, right)
+              self.skip_whitespace()
+            }
+            Err(e) => return Err(e)
+          }
+        } else if self.peek() == Some('/') {
+          self.advance()
+          match self.parse_pipe() {
+            Ok(right) => {
+              current = Query::Binary(Op::Div, current, right)
+              self.skip_whitespace()
+            }
+            Err(e) => return Err(e)
+          }
+        } else {
+          break
+        }
+      }
+      Ok(current)
     }
     Err(e) => Err(e)
   }
@@ -603,7 +675,8 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
               return Err("Expected ':'")
             }
             self.advance()
-            match self.parse_query_expr() {
+            // 使用 parse_compare 而不是 parse_query_expr，避免解析逗号作为序列操作符
+            match self.parse_compare() {
               Ok(val) => {
                 fields.push((key, val))
                 self.skip_whitespace()
@@ -738,7 +811,8 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
             self.skip_whitespace()
             if self.peek() == Some('(') {
               self.advance()
-              match self.parse_query_expr() {
+              // 使用 parse_compare 避免解析括号内的逗号为序列操作符
+              match self.parse_compare() {
                 Ok(q) =>
                   if self.peek() == Some(')') {
                     self.advance()
@@ -756,7 +830,8 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
             self.skip_whitespace()
             if self.peek() == Some('(') {
               self.advance()
-              match self.parse_query_expr() {
+              // 使用 parse_compare 避免解析括号内的逗号为序列操作符
+              match self.parse_compare() {
                 Ok(q) =>
                   if self.peek() == Some(')') {
                     self.advance()
@@ -778,7 +853,8 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
             self.skip_whitespace()
             if self.peek() == Some('(') {
               self.advance()
-              match self.parse_query_expr() {
+              // 使用 parse_compare 避免解析括号内的逗号为序列操作符
+              match self.parse_compare() {
                 Ok(q) =>
                   if self.peek() == Some(')') {
                     self.advance()
@@ -796,7 +872,8 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
             self.skip_whitespace()
             if self.peek() == Some('(') {
               self.advance()
-              match self.parse_query_expr() {
+              // 使用 parse_compare 避免解析括号内的逗号为序列操作符
+              match self.parse_compare() {
                 Ok(q) =>
                   if self.peek() == Some(')') {
                     self.advance()
@@ -815,7 +892,8 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
             self.skip_whitespace()
             if self.peek() == Some('(') {
               self.advance()
-              match self.parse_query_expr() {
+              // 使用 parse_compare 避免解析括号内的逗号为序列操作符
+              match self.parse_compare() {
                 Ok(q) =>
                   if self.peek() == Some(')') {
                     self.advance()

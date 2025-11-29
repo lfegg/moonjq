@@ -127,13 +127,17 @@ moon run src -- ".users | .[0] | .name" '{\"users\": [{\"name\": \"Alice\"}]}'
 ### 4. 递归下降
 
 ```powershell
-# 递归查找所有 name 字段
+# 递归查找所有 name 字段（可选操作符 ? 会为没有 name 的对象返回 null）
 moon run src -- ".. | .name?" '{\"name\": \"root\", \"child\": {\"name\": \"leaf\"}}'
-# 输出: "root" "leaf"
+# 输出: "root" null "leaf" null
 
 # 递归查找所有数组元素
 moon run src -- ".. | .[]?" '[1, [2, [3, 4]]]'
 # 输出: 1 2 3 4
+
+# 如果只想要有值的结果，可以用 select
+moon run src -- ".. | .name? | select(. != null)" '{\"name\": \"root\", \"child\": {\"name\": \"leaf\"}}'
+# 输出: "root" "leaf"
 ```
 
 ### 5. 可选运算符
@@ -151,13 +155,27 @@ moon run src -- ".[10]?" '[1, 2, 3]'
 ### 6. 对象构造
 
 ```powershell
-# 构造新对象
-moon run src -- "{name: .name, adult: .age}" '{\"name\": \"Alice\", \"age\": 30}'
-# 输出: {"name": "Alice", "adult": 30}
+# 构造新对象（单个字段）
+moon run src -- '{ user: .name }' '{\"name\": \"Alice\"}'
+# 输出: {"user": "Alice"}
 
-# 使用字符串键
-moon run src -- "{\"full_name\": .name}" '{\"name\": \"Alice\"}'
-# 输出: {"full_name": "Alice"}
+# 构造多字段对象
+moon run src -- '{name: .name, age: .age}' '{\"name\": \"Alice\", \"age\": 30}'
+# 输出: {"name": "Alice", "age": 30}
+
+# 使用字符串键（支持特殊字符）
+moon run src -- '{\"full_name\": .name, \"user_age\": .age}' '{\"name\": \"Bob\", \"age\": 25}'
+# 输出: {"full_name": "Bob", "user_age": 25}
+
+# 混合使用字段和字面量
+moon run src -- '{name: .name, status: \"active\", count: 5}' '{\"name\": \"Charlie\"}'
+# 输出: {"name": "Charlie", "status": "active", "count": 5}
+
+# 在管道中使用对象构造
+moon run src -- '.users | .[] | { user: .name }' '{\"users\": [{\"name\": \"Alice\"}, {\"name\": \"Bob\"}]}'
+# 输出:
+# {"user": "Alice"}
+# {"user": "Bob"}
 ```
 
 ### 7. 数组构造
@@ -172,7 +190,46 @@ moon run src -- "[.items[]]" '{\"items\": [1, 2, 3]}'
 # 输出: [1, 2, 3]
 ```
 
-### 8. 逗号运算符
+### 8. 算术运算
+
+```powershell
+# 加法
+moon run src -- ". + 5" "10"
+# 输出: 15
+
+# 减法
+moon run src -- ". - 3" "20"
+# 输出: 17
+
+# 乘法
+moon run src -- ". * 4" "7"
+# 输出: 28
+
+# 除法
+moon run src -- ". / 2" "100"
+# 输出: 50
+
+# 混合运算（遵循标准运算优先级）
+moon run src -- ". * 2 + 1" "5"
+# 输出: 11
+
+moon run src -- ". + 10 / 2" "5"
+# 输出: 10
+
+# 在 map 中使用算术运算
+moon run src -- 'map(. * 2)' '[1, 2, 3, 4, 5]'
+# 输出: [2, 4, 6, 8, 10]
+
+# 在 select 中使用算术运算
+moon run src -- '.[] | select(. * 2 > 25)' '[5, 10, 15, 20]'
+# 输出: 15 20
+
+# 对非数值类型的算术操作返回 null
+moon run src -- ". + 5" '\"hello\"'
+# 输出: null
+```
+
+### 9. 逗号运算符
 
 ```powershell
 # 多个输出
@@ -184,7 +241,7 @@ moon run src -- ".[0], .[2]" '[1, 2, 3]'
 # 输出: 1 3
 ```
 
-### 9. 类型检查函数
+### 10. 类型检查函数
 
 ```powershell
 # type - 返回值的类型
@@ -198,25 +255,35 @@ moon run src -- ".items | type" '{\"items\": [1, 2]}'
 # 输出: "array"
 
 # has(key) - 检查对象是否包含键
-moon run src -- "has(\"name\")" '{\"name\": \"Alice\", \"age\": 30}'
+moon run src -- 'has(\"name\")' '{\"name\": \"Alice\", \"age\": 30}'
 # 输出: true
 
-moon run src -- "has(\"email\")" '{\"name\": \"Alice\"}'
+moon run src -- 'has(\"email\")' '{\"name\": \"Alice\"}'
 # 输出: false
 
-# in(obj) - 检查键是否在对象中
-moon run src -- "\"name\" | in({\"name\": \"Alice\"})" "null"
+# in(array) - 检查值是否在数组中
+moon run src -- 'in([1, 2, 3])' "2"
+# 输出: true
+
+moon run src -- 'in([1, 2, 3])' "5"
+# 输出: false
+
+# 检查字符串是否在列表中
+moon run src -- 'in([\"apple\", \"banana\", \"orange\"])' '\"banana\"'
 # 输出: true
 ```
 
-### 10. 数组函数
+### 11. 数组函数
 
 ```powershell
 # map(expr) - 对数组每个元素应用表达式
-moon run src -- "map(. * 2)" "[1, 2, 3]"
-# 输出: [2, 4, 6]
+moon run src -- 'map(. * 2)' '[1, 2, 3, 4, 5]'
+# 输出: [2, 4, 6, 8, 10]
 
-moon run src -- ".items | map(.price)" '{\"items\": [{\"price\": 10}, {\"price\": 20}]}'
+moon run src -- 'map(.x)' '[{\"x\": 1}, {\"x\": 2}, {\"x\": 3}]'
+# 输出: [1, 2, 3]
+
+moon run src -- '.items | map(.price)' '{\"items\": [{\"price\": 10}, {\"price\": 20}]}'
 # 输出: [10, 20]
 
 # add - 求和（数字）或连接（字符串/数组）
@@ -251,39 +318,39 @@ moon run src -- "unique_by(.id)" '[{\"id\": 1, \"name\": \"a\"}, {\"id\": 2, \"n
 # 输出: [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}]
 ```
 
-### 11. 字符串函数
+### 12. 字符串函数
 
 ```powershell
 # split(sep) - 分割字符串
-moon run src -- "split(\",\")" '\"a,b,c\"'
+moon run src -- 'split(\",\")' '\"a,b,c\"'
 # 输出: ["a", "b", "c"]
 
 # join(sep) - 连接数组
-moon run src -- "join(\"-\")" '[\"2024\", \"01\", \"01\"]'
+moon run src -- 'join(\"-\")' '[\"2024\", \"01\", \"01\"]'
 # 输出: "2024-01-01"
 
 # startswith(str) - 检查是否以指定字符串开头
-moon run src -- "startswith(\"Hello\")" '\"Hello World\"'
+moon run src -- 'startswith(\"hello\")' '\"hello-world\"'
 # 输出: true
 
 # endswith(str) - 检查是否以指定字符串结尾
-moon run src -- "endswith(\"World\")" '\"Hello World\"'
+moon run src -- 'endswith(\"world\")' '\"hello-world\"'
 # 输出: true
 
 # contains(str) - 检查是否包含子字符串
-moon run src -- "contains(\"lo\")" '\"Hello\"'
+moon run src -- 'contains(\"lo\")' '\"hello\"'
 # 输出: true
 
 # ltrimstr(str) - 删除开头的字符串
-moon run src -- "ltrimstr(\"Hello \")" '\"Hello World\"'
-# 输出: "World"
+moon run src -- 'ltrimstr(\"hello-\")' '\"hello-world\"'
+# 输出: "world"
 
 # rtrimstr(str) - 删除结尾的字符串
-moon run src -- "rtrimstr(\" World\")" '\"Hello World\"'
-# 输出: "Hello"
+moon run src -- 'rtrimstr(\"-world\")' '\"hello-world\"'
+# 输出: "hello"
 ```
 
-### 12. 算术运算
+### 13. 算术运算
 
 ```powershell
 # 加法
@@ -303,7 +370,7 @@ moon run src -- ". / 2" "10"
 # 输出: 5
 ```
 
-### 13. 比较运算
+### 14. 比较运算
 
 ```powershell
 # 等于
@@ -331,7 +398,7 @@ moon run src -- ". <= 5" "3"
 # 输出: true
 ```
 
-### 14. 条件表达式
+### 15. 条件表达式
 
 ```powershell
 # if-then-else-end - 条件分支

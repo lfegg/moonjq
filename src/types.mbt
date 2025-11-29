@@ -12,12 +12,18 @@ pub enum Json {
 ///|
 /// 比较操作符枚举。
 pub enum Op {
+  // 比较操作符
   Eq // ==
   Neq // !=
   Gt // >
   Lt // <
   Gte // >=
   Lte // <=
+  // 算术操作符
+  Add // +
+  Sub // -
+  Mul // *
+  Div // /
 } derive(Show, Eq)
 
 ///|

@@ -121,6 +121,19 @@ moon run src -- '.[] | select(. > 1)' '[1, 2, 3]'
 #### 5. 链式操作与对象构造
 
 ```bash
+# 单字段对象构造
+moon run src -- '{ user: .name }' '{"name": "Alice"}'
+# 输出: {"user": "Alice"}
+
+# 多字段对象构造
+moon run src -- '{name: .name, age: .age}' '{"name": "Alice", "age": 30}'
+# 输出: {"name": "Alice", "age": 30}
+
+# 使用字符串键
+moon run src -- '{"full_name": .name, "user_age": .age}' '{"name": "Bob", "age": 25}'
+# 输出: {"full_name": "Bob", "user_age": 25}
+
+# 在管道中使用
 moon run src -- '.users | .[] | { user: .name }' '{"users": [{"name": "Alice"}, {"name": "Bob"}]}'
 # 输出:
 # {"user": "Alice"}

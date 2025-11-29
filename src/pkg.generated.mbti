@@ -30,6 +30,10 @@ pub enum Op {
   Lt
   Gte
   Lte
+  Add
+  Sub
+  Mul
+  Div
 }
 impl Eq for Op
 impl Show for Op
