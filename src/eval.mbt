@@ -289,6 +289,142 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
       eval(json, else_expr)
     }
 
+    // 逻辑与 'a and b'
+    And(left, right) => {
+      let left_results = eval(json, left)
+      for l in left_results {
+        if not(is_truthy(l)) {
+          return [Json::Bool(false)]
+        }
+      }
+      let right_results = eval(json, right)
+      for r in right_results {
+        if not(is_truthy(r)) {
+          return [Json::Bool(false)]
+        }
+      }
+      [Json::Bool(true)]
+    }
+
+    // 逻辑或 'a or b'
+    Or(left, right) => {
+      let left_results = eval(json, left)
+      for l in left_results {
+        if is_truthy(l) {
+          return [Json::Bool(true)]
+        }
+      }
+      let right_results = eval(json, right)
+      for r in right_results {
+        if is_truthy(r) {
+          return [Json::Bool(true)]
+        }
+      }
+      [Json::Bool(false)]
+    }
+
+    // 逻辑非 'not(expr)'
+    Not(expr) => {
+      let results = eval(json, expr)
+      for r in results {
+        if is_truthy(r) {
+          return [Json::Bool(false)]
+        }
+      }
+      [Json::Bool(true)]
+    }
+
+    // 空值替代 'a // b'
+    Alternative(left, right) => {
+      let left_results = eval(json, left)
+      // 如果左侧返回非 null 且非 false 的值，使用它
+      for l in left_results {
+        match l {
+          Null | Bool(false) => continue
+          _ => return [l]
+        }
+      }
+      // 否则使用右侧的值
+      eval(json, right)
+    }
+
+    // 类型转换：tostring
+    ToString =>
+      match json {
+        String(_) => [json]
+        Number(n) => [Json::String(n.to_string())]
+        Bool(b) => [Json::String(b.to_string())]
+        Null => [Json::String("null")]
+        Array(_) => [Json::String(json.to_json_string())]
+        Object(_) => [Json::String(json.to_json_string())]
+      }
+
+    // 类型转换：tonumber
+    ToNumber =>
+      match json {
+        Number(_) => [json]
+        String(s) => {
+          // 尝试解析字符串为数字
+          let parser = Parser::new(s)
+          match parser.parse_number() {
+            Ok(n) => [Json::Number(n)]
+            Err(_) => [Json::Null] // 解析失败返回 null
+          }
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组函数：reverse
+    Reverse =>
+      match json {
+        Array(arr) => {
+          let result = []
+          for i = arr.length() - 1; i >= 0; i = i - 1 {
+            result.push(arr[i])
+          }
+          [Json::Array(result)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组函数：flatten
+    Flatten =>
+      match json {
+        Array(arr) => {
+          let result = []
+          for item in arr {
+            match item {
+              Array(sub) =>
+                for elem in sub {
+                  result.push(elem)
+                }
+              _ => result.push(item)
+            }
+          }
+          [Json::Array(result)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组函数：first
+    First =>
+      match json {
+        Array(arr) => if arr.length() > 0 { [arr[0]] } else { [Json::Null] }
+        _ => [Json::Null]
+      }
+
+    // 数组函数：last
+    Last =>
+      match json {
+        Array(arr) =>
+          if arr.length() > 0 {
+            [arr[arr.length() - 1]]
+          } else {
+            [Json::Null]
+          }
+        _ => [Json::Null]
+      }
+
     // 管道 '|'
     Pipe(left, right) => {
       let results = []

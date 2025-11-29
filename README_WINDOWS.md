@@ -227,9 +227,133 @@ moon run src -- '.[] | select(. * 2 > 25)' '[5, 10, 15, 20]'
 # 对非数值类型的算术操作返回 null
 moon run src -- ". + 5" '\"hello\"'
 # 输出: null
+
+# 使用括号改变运算优先级
+moon run src -- "(. + 5) * 2" "10"
+# 输出: 30
+
+moon run src -- "2 * (3 + 4)" "0"
+# 输出: 14
+
+# 嵌套括号
+moon run src -- "((. + 5) * 2) - 1" "10"
+# 输出: 29
 ```
 
-### 9. 逗号运算符
+### 9. 布尔运算
+
+```powershell
+# and - 逻辑与
+moon run src -- 'if .age > 18 and .status == \"active\" then \"allowed\" else \"denied\" end' '{\"age\": 25, \"status\": \"active\"}'
+# 输出: "allowed"
+
+moon run src -- '.x > 0 and .y > 0' '{\"x\": 5, \"y\": 10}'
+# 输出: true
+
+# or - 逻辑或
+moon run src -- '.x > 100 or .y > 100' '{\"x\": 5, \"y\": 200}'
+# 输出: true
+
+# not - 逻辑非
+moon run src -- 'if not(.deleted) then .name else empty end' '{\"name\": \"Alice\", \"deleted\": false}'
+# 输出: "Alice"
+
+moon run src -- 'not(.active)' '{\"active\": false}'
+# 输出: true
+
+# 组合使用
+moon run src -- '.x > 0 and (.y > 10 or .z > 10)' '{\"x\": 5, \"y\": 15, \"z\": 3}'
+# 输出: true
+```
+
+### 10. 空值合并 (Alternative Operator)
+
+```powershell
+# 使用 // 提供默认值
+moon run src -- '.name // \"Unknown\"' '{\"age\": 30}'
+# 输出: "Unknown"
+
+moon run src -- '.name // \"Unknown\"' '{\"name\": \"Alice\", \"age\": 30}'
+# 输出: \"Alice\"
+
+# 处理 false 值（false 会被跳过，使用右侧）
+moon run src -- '.active // true' '{\"active\": false}'
+# 输出: true
+
+# 如果左侧有值则使用左侧
+moon run src -- '.active // false' '{\"active\": true}'
+# 输出: true
+
+# 链式使用
+moon run src -- '.config.timeout // .defaultTimeout // 30' '{\"defaultTimeout\": 60}'
+# 输出: 60
+
+# 在配置中使用
+moon run src -- '{name: .name // \"default\", port: .port // 8080}' '{\"name\": \"app\"}'
+# 输出: {"name": "app", "port": 8080}
+```
+
+### 11. 类型转换
+
+```powershell
+# tostring - 转换为字符串
+moon run src -- 'tostring' '123'
+# 输出: "123"
+
+moon run src -- 'tostring' 'true'
+# 输出: "true"
+
+moon run src -- '.age | tostring' '{\"age\": 30}'
+# 输出: "30"
+
+# tonumber - 转换为数字
+moon run src -- 'tonumber' '\"456\"'
+# 输出: 456
+
+moon run src -- '\"123\" | tonumber | . * 2' 'null'
+# 输出: 246
+
+# 处理无效输入
+moon run src -- 'tonumber' '\"abc\"'
+# 输出: null
+
+# 在 map 中使用
+moon run src -- 'map(tonumber)' '[\"1\", \"2\", \"3\"]'
+# 输出: [1, 2, 3]
+```
+
+### 12. 数组函数
+
+```powershell
+# reverse - 反转数组
+moon run src -- 'reverse' '[1, 2, 3, 4, 5]'
+# 输出: [5, 4, 3, 2, 1]
+
+# flatten - 扁平化数组（一层）
+moon run src -- 'flatten' '[[1, 2], [3, 4], [5]]'
+# 输出: [1, 2, 3, 4, 5]
+
+moon run src -- 'flatten' '[[1, [2, 3]], [4, 5]]'
+# 输出: [1, [2, 3], 4, 5]
+
+# first - 获取第一个元素
+moon run src -- 'first' '[10, 20, 30]'
+# 输出: 10
+
+# last - 获取最后一个元素
+moon run src -- 'last' '[10, 20, 30]'
+# 输出: 30
+
+# 组合使用
+moon run src -- 'first, last' '[10, 20, 30, 40]'
+# 输出: 10 40
+
+# 在管道中使用
+moon run src -- 'reverse | first' '[1, 2, 3]'
+# 输出: 3
+```
+
+### 13. 逗号运算符
 
 ```powershell
 # 多个输出
@@ -350,27 +474,7 @@ moon run src -- 'rtrimstr(\"-world\")' '\"hello-world\"'
 # 输出: "hello"
 ```
 
-### 13. 算术运算
-
-```powershell
-# 加法
-moon run src -- ". + 10" "5"
-# 输出: 15
-
-# 减法
-moon run src -- ". - 3" "10"
-# 输出: 7
-
-# 乘法
-moon run src -- ". * 2" "7"
-# 输出: 14
-
-# 除法
-moon run src -- ". / 2" "10"
-# 输出: 5
-```
-
-### 14. 比较运算
+### 13. 比较运算
 
 ```powershell
 # 等于
@@ -398,7 +502,7 @@ moon run src -- ". <= 5" "3"
 # 输出: true
 ```
 
-### 15. 条件表达式
+### 14. 条件表达式
 
 ```powershell
 # if-then-else-end - 条件分支
@@ -534,7 +638,7 @@ moon info
 
 ## 项目结构
 
-```
+```text
 moonjq/
 ├── src/              # 源代码
 │   ├── types.mbt     # 类型定义

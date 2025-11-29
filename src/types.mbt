@@ -65,4 +65,18 @@ pub enum Query {
   LTrimStr(String) // 去除字符串左侧前缀 'ltrimstr(str)'
   RTrimStr(String) // 去除字符串右侧后缀 'rtrimstr(str)'
   IfThenElse(Query, Query, Query) // 条件表达式 'if cond then expr1 else expr2 end'
+  // 布尔运算符
+  And(Query, Query) // 逻辑与 'a and b'
+  Or(Query, Query) // 逻辑或 'a or b'
+  Not(Query) // 逻辑非 'not(expr)'
+  // 空值合并运算符
+  Alternative(Query, Query) // 空值替代 'a // b'
+  // 类型转换
+  ToString // 转换为字符串 'tostring'
+  ToNumber // 转换为数字 'tonumber'
+  // 更多数组函数
+  Reverse // 反转数组 'reverse'
+  Flatten // 扁平化数组 'flatten'
+  First // 第一个元素 'first'
+  Last // 最后一个元素 'last'
 } derive(Show, Eq)

@@ -77,6 +77,16 @@ pub enum Query {
   LTrimStr(String)
   RTrimStr(String)
   IfThenElse(Query, Query, Query)
+  And(Query, Query)
+  Or(Query, Query)
+  Not(Query)
+  Alternative(Query, Query)
+  ToString
+  ToNumber
+  Reverse
+  Flatten
+  First
+  Last
 }
 impl Eq for Query
 impl Show for Query

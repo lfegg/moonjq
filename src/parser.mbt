@@ -335,13 +335,74 @@ fn Parser::parse_query_expr(self : Parser) -> Result[Query, String] {
 /// 解析序列操作符 (逗号)。
 /// 优先级最低。
 fn Parser::parse_sequence(self : Parser) -> Result[Query, String] {
-  match self.parse_compare() {
+  match self.parse_or() {
     Ok(left) => {
       self.skip_whitespace()
       if self.peek() == Some(',') {
         self.advance()
         match self.parse_sequence() {
           Ok(right) => Ok(Query::Sequence(left, right))
+          Err(e) => Err(e)
+        }
+      } else {
+        Ok(left)
+      }
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+/// 解析逻辑或操作符 (or)。
+fn Parser::parse_or(self : Parser) -> Result[Query, String] {
+  match self.parse_and() {
+    Ok(left) => {
+      self.skip_whitespace()
+      if self.parse_keyword("or") {
+        self.skip_whitespace()
+        match self.parse_or() {
+          Ok(right) => Ok(Query::Or(left, right))
+          Err(e) => Err(e)
+        }
+      } else {
+        Ok(left)
+      }
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+/// 解析逻辑与操作符 (and)。
+fn Parser::parse_and(self : Parser) -> Result[Query, String] {
+  match self.parse_alternative() {
+    Ok(left) => {
+      self.skip_whitespace()
+      if self.parse_keyword("and") {
+        self.skip_whitespace()
+        match self.parse_and() {
+          Ok(right) => Ok(Query::And(left, right))
+          Err(e) => Err(e)
+        }
+      } else {
+        Ok(left)
+      }
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+/// 解析空值替代操作符 (//)。
+fn Parser::parse_alternative(self : Parser) -> Result[Query, String] {
+  match self.parse_compare() {
+    Ok(left) => {
+      self.skip_whitespace()
+      if self.match_string("//") {
+        self.pos = self.pos + 2
+        self.skip_whitespace()
+        match self.parse_alternative() {
+          Ok(right) => Ok(Query::Alternative(left, right))
           Err(e) => Err(e)
         }
       } else {
@@ -455,7 +516,7 @@ fn Parser::parse_mul_div(self : Parser) -> Result[Query, String] {
             }
             Err(e) => return Err(e)
           }
-        } else if self.peek() == Some('/') {
+        } else if self.peek() == Some('/') && not(self.match_string("//")) {
           self.advance()
           match self.parse_pipe() {
             Ok(right) => {
@@ -519,6 +580,23 @@ fn Parser::parse_postfix(self : Parser) -> Result[Query, String] {
 fn Parser::parse_term(self : Parser) -> Result[Query, String] {
   self.skip_whitespace()
   match self.peek() {
+    // 支持括号表达式
+    Some('(') => {
+      self.advance()
+      self.skip_whitespace()
+      match self.parse_query_expr() {
+        Ok(expr) => {
+          self.skip_whitespace()
+          if self.peek() == Some(')') {
+            self.advance()
+            Ok(expr)
+          } else {
+            Err("Expected closing ')'")
+          }
+        }
+        Err(e) => Err(e)
+      }
+    }
     Some('.') => {
       let mut current = Query::Identity
       let mut first = true
@@ -888,6 +966,33 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
             }
           }
           "unique" => Ok(Query::Unique)
+          // 新数组函数
+          "reverse" => Ok(Query::Reverse)
+          "flatten" => Ok(Query::Flatten)
+          "first" => Ok(Query::First)
+          "last" => Ok(Query::Last)
+          // 类型转换
+          "tostring" => Ok(Query::ToString)
+          "tonumber" => Ok(Query::ToNumber)
+          // 逻辑非
+          "not" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              match self.parse_query_expr() {
+                Ok(q) =>
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::Not(q))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after not")
+            }
+          }
           "unique_by" => {
             self.skip_whitespace()
             if self.peek() == Some('(') {

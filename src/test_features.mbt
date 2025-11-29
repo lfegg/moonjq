@@ -1271,3 +1271,382 @@ test "arithmetic_non_numeric" {
     Err(e) => fail("JSON error: " + e)
   }
 }
+
+///|
+/// 测试括号表达式
+test "parenthesized_expression" {
+  let json_str = "10"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "(. + 5) * 2"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Number(30)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试嵌套括号
+test "nested_parentheses" {
+  let json_str = "10"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "((. + 5) * 2) - 1"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Number(29)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试括号改变运算优先级
+test "parentheses_precedence" {
+  let json_str = "0"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "2 * (3 + 4)"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Number(14)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试逻辑与运算符
+test "and_operator_true" {
+  let json_str = "{\"age\": 25, \"status\": \"active\"}"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = ".age > 18 and .status == \"active\""
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(true)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "and_operator_false" {
+  let json_str = "{\"age\": 15, \"status\": \"active\"}"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = ".age > 18 and .status == \"active\""
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(false)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试逻辑或运算符
+test "or_operator_true" {
+  let json_str = "{\"x\": 5, \"y\": -3}"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = ".x > 0 or .y > 0"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(true)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "or_operator_false" {
+  let json_str = "{\"x\": -5, \"y\": -3}"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = ".x > 0 or .y > 0"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(false)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试逻辑非运算符
+test "not_operator_true" {
+  let json_str = "{\"deleted\": false}"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "not(.deleted)"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(true)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "not_operator_false" {
+  let json_str = "{\"deleted\": true}"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "not(.deleted)"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(false)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试空值替代运算符
+test "alternative_operator_with_value" {
+  let json_str = "{\"name\": \"Alice\"}"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = ".name // \"Unknown\""
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"Alice\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "alternative_operator_with_null" {
+  let json_str = "{\"name\": null}"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = ".name // \"Unknown\""
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"Unknown\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "alternative_operator_with_false" {
+  let json_str = "{\"active\": false}"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = ".active // true"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(true)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试 tostring
+test "tostring_number" {
+  let json_str = "42"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "tostring"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"42\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "tostring_bool" {
+  let json_str = "true"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "tostring"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"true\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试 tonumber
+test "tonumber_string" {
+  let json_str = "\"123\""
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "tonumber"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Number(123)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "tonumber_invalid_string" {
+  let json_str = "\"hello\""
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "tonumber"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Null]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试 reverse
+test "reverse_array" {
+  let json_str = "[1, 2, 3, 4, 5]"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "reverse"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(
+            res,
+            content="[Array([Number(5), Number(4), Number(3), Number(2), Number(1)])]",
+          )
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试 flatten
+test "flatten_array" {
+  let json_str = "[[1, 2], [3, 4], [5]]"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "flatten"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(
+            res,
+            content="[Array([Number(1), Number(2), Number(3), Number(4), Number(5)])]",
+          )
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试 first
+test "first_element" {
+  let json_str = "[10, 20, 30]"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "first"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Number(10)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// 测试 last
+test "last_element" {
+  let json_str = "[10, 20, 30]"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = "last"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Number(30)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}

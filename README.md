@@ -17,10 +17,14 @@ MoonJQ 是一个使用 [MoonBit](https://github.com/moonbitlang/moonbit) 编写�
   - **管道**: `|` (链接过滤器)
   - **选择**: `select(. > 10)` (基于条件过滤值)
   - **构造**: `[ .foo, .bar ]`, `{ "a": .foo }`
+  - **算术运算**: `+`, `-`, `*`, `/` (支持数值运算和括号表达式)
   - **比较**: `==`, `!=`, `>`, `<`, `>=`, `<=`
+  - **布尔运算**: `and`, `or`, `not`
+  - **空值合并**: `//` (alternative operator)
   - **类型检查**: `type`, `has(key)`, `in(array)`
+  - **类型转换**: `tostring`, `tonumber`
   - **工具函数**: `length`, `keys`
-  - **数组操作**: `map(expr)`, `add`, `min`, `max`, `sort`, `sort_by(expr)`, `group_by(expr)`, `unique`, `unique_by(expr)`
+  - **数组操作**: `map(expr)`, `add`, `min`, `max`, `sort`, `sort_by(expr)`, `group_by(expr)`, `unique`, `unique_by(expr)`, `reverse`, `flatten`, `first`, `last`
   - **字符串操作**: `split(sep)`, `join(sep)`, `startswith(str)`, `endswith(str)`, `contains(str)`, `ltrimstr(str)`, `rtrimstr(str)`
   - **条件表达式**: `if-then-else-end`
 
@@ -282,6 +286,9 @@ moon run src -- '.[0].name' '[{"name": "Alice"}, {"name": "Bob"}]'
 
 ```bash
 # map - 对每个元素应用表达式
+moon run src -- 'map(. * 2)' '[1, 2, 3, 4, 5]'
+# 输出: [2, 4, 6, 8, 10]
+
 moon run src -- 'map(.x)' '[{"x": 1}, {"x": 2}, {"x": 3}]'
 # 输出: [1, 2, 3]
 
@@ -376,7 +383,174 @@ moon run src -- 'rtrimstr("hello")' '"hello world"'
 # 输出: "hello world"  # 不匹配，返回原字符串
 ```
 
-#### 14. 条件表达式
+#### 14. 算术运算
+
+```bash
+# 加法
+moon run src -- ". + 5" "10"
+# 输出: 15
+
+# 减法
+moon run src -- ". - 3" "20"
+# 输出: 17
+
+# 乘法
+moon run src -- ". * 4" "7"
+# 输出: 28
+
+# 除法
+moon run src -- ". / 2" "100"
+# 输出: 50
+
+# 混合运算（遵循标准运算优先级：乘除优先于加减）
+moon run src -- ". * 2 + 1" "5"
+# 输出: 11
+
+moon run src -- ". + 10 / 2" "5"
+# 输出: 10
+
+# 在 map 中使用算术运算
+moon run src -- 'map(. * 2)' '[1, 2, 3, 4, 5]'
+# 输出: [2, 4, 6, 8, 10]
+
+# 在 select 中使用算术运算
+moon run src -- '.[] | select(. * 2 > 25)' '[5, 10, 15, 20]'
+# 输出:
+# 15
+# 20
+
+# 对非数值类型的算术操作返回 null
+moon run src -- ". + 5" '"hello"'
+# 输出: null
+
+# 使用括号改变运算优先级
+moon run src -- "(. + 5) * 2" "10"
+# 输出: 30
+
+moon run src -- "2 * (3 + 4)" "0"
+# 输出: 14
+
+# 嵌套括号
+moon run src -- "((. + 5) * 2) - 1" "10"
+# 输出: 29
+```
+
+#### 15. 布尔运算
+
+```bash
+# and - 逻辑与
+moon run src -- 'if .age > 18 and .status == "active" then "allowed" else "denied" end' '{"age": 25, "status": "active"}'
+# 输出: "allowed"
+
+moon run src -- '.x > 0 and .y > 0' '{"x": 5, "y": 10}'
+# 输出: true
+
+# or - 逻辑或
+moon run src -- '.x > 100 or .y > 100' '{"x": 5, "y": 200}'
+# 输出: true
+
+# not - 逻辑非
+moon run src -- 'if not(.deleted) then .name else empty end' '{"name": "Alice", "deleted": false}'
+# 输出: "Alice"
+
+moon run src -- 'not(.active)' '{"active": false}'
+# 输出: true
+
+# 组合使用
+moon run src -- '.x > 0 and (.y > 10 or .z > 10)' '{"x": 5, "y": 15, "z": 3}'
+# 输出: true
+```
+
+#### 16. 空值合并 (Alternative Operator)
+
+```bash
+# 使用 // 提供默认值
+moon run src -- '.name // "Unknown"' '{"age": 30}'
+# 输出: "Unknown"
+
+moon run src -- '.name // "Unknown"' '{"name": "Alice", "age": 30}'
+# 输出: "Alice"
+
+# 处理 false 值（false 会被跳过，使用右侧）
+moon run src -- '.active // true' '{"active": false}'
+# 输出: true
+
+# 如果左侧有值则使用左侧
+moon run src -- '.active // false' '{"active": true}'
+# 输出: true
+
+# 链式使用
+moon run src -- '.config.timeout // .defaultTimeout // 30' '{"defaultTimeout": 60}'
+# 输出: 60
+
+# 在配置中使用
+moon run src -- '{name: .name // "default", port: .port // 8080}' '{"name": "app"}'
+# 输出: {"name": "app", "port": 8080}
+```
+
+#### 17. 类型转换
+
+```bash
+# tostring - 转换为字符串
+moon run src -- 'tostring' '123'
+# 输出: "123"
+
+moon run src -- 'tostring' 'true'
+# 输出: "true"
+
+moon run src -- '.age | tostring' '{"age": 30}'
+# 输出: "30"
+
+# tonumber - 转换为数字
+moon run src -- 'tonumber' '"456"'
+# 输出: 456
+
+moon run src -- '"123" | tonumber | . * 2' 'null'
+# 输出: 246
+
+# 处理无效输入
+moon run src -- 'tonumber' '"abc"'
+# 输出: null
+
+# 在 map 中使用
+moon run src -- 'map(tonumber)' '["1", "2", "3"]'
+# 输出: [1, 2, 3]
+```
+
+#### 18. 数组函数
+
+```bash
+# reverse - 反转数组
+moon run src -- 'reverse' '[1, 2, 3, 4, 5]'
+# 输出: [5, 4, 3, 2, 1]
+
+# flatten - 扁平化数组（一层）
+moon run src -- 'flatten' '[[1, 2], [3, 4], [5]]'
+# 输出: [1, 2, 3, 4, 5]
+
+moon run src -- 'flatten' '[[1, [2, 3]], [4, 5]]'
+# 输出: [1, [2, 3], 4, 5]
+
+# first - 获取第一个元素
+moon run src -- 'first' '[10, 20, 30]'
+# 输出: 10
+
+# last - 获取最后一个元素
+moon run src -- 'last' '[10, 20, 30]'
+# 输出: 30
+
+# 组合使用
+moon run src -- 'first, last' '[10, 20, 30, 40]'
+# 输出:
+# 10
+# 40
+
+# 在管道中使用
+moon run src -- 'reverse | first' '[1, 2, 3]'
+# 输出: 3
+```
+
+#### 19. 条件表达式
 
 ```bash
 # if-then-else-end - 条件分支
