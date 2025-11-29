@@ -1,0 +1,12 @@
+{
+  "user": {
+    "name": "Tom",
+    "age": 20,
+    "skills": ["Java", "JavaScript", "Go"]
+  },
+  "projects": [
+    { "title": "Web App", "stars": 120 },
+    { "title": "CLI Tool", "stars": 80 }
+  ],
+  "active": true
+}

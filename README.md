@@ -144,6 +144,26 @@ moon run src -- ".user.skills | .[1:]" test.json
 #### 4. 数组迭代与过滤
 
 ```bash
+# 基本迭代
+moon run src -- '.[]' '[1, 2, 3]'
+# 输出:
+# 1
+# 2
+# 3
+
+# 字段数组迭代（简化语法）
+moon run src -- '.projects[]' test.json
+# 输出:
+# {"title": "Web App", "stars": 120}
+# {"title": "CLI Tool", "stars": 80}
+
+# 字段迭代并访问子字段
+moon run src -- '.projects[].title' test.json
+# 输出:
+# "Web App"
+# "CLI Tool"
+
+# 带过滤的迭代
 moon run src -- '.[] | select(. > 1)' '[1, 2, 3]'
 # 输出:
 # 2
@@ -429,6 +449,25 @@ moon run src -- ". * 4" "7"
 # 除法
 moon run src -- ". / 2" "100"
 # 输出: 50
+
+# 负数字面量
+moon run src -- "-10 + 5" "null"
+# 输出: -5
+
+moon run src -- "-3.14 * 2" "null"
+# 输出: -6.28
+
+# 字符串连接
+moon run src -- '.user.name + " Smith"' test.json
+# 输出: "Tom Smith"
+
+# 数组连接
+moon run src -- '[1, 2] + [3, 4]' "null"
+# 输出: [1, 2, 3, 4]
+
+# 对象合并
+moon run src -- '{a: 1} + {b: 2}' "null"
+# 输出: {"a": 1, "b": 2}
 
 # 混合运算（遵循标准运算优先级：乘除优先于加减）
 moon run src -- ". * 2 + 1" "5"
