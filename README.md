@@ -6,6 +6,7 @@ MoonJQ 是一个使用 [MoonBit](https://github.com/moonbitlang/moonbit) 编写�
 
 - **可移植**: 编译为 WebAssembly (Wasm)，可在任何支持 Wasm 的地方运行。
 - **轻量级**: 依赖极少，二进制体积小。
+- **Unicode 支持**: 完整支持 `\uXXXX` Unicode 转义序列，正确处理中文、emoji 等多语言字符。
 - **核心 `jq` 功能**:
   - **恒等**: `.`
   - **字段访问**: `.foo`, `.bar`
@@ -652,6 +653,35 @@ moon run src -- 'if . then \"true\" else \"false\" end' "0"
 moon run src -- 'if . then \"true\" else \"false\" end' '\"\"'
 # 输出: "true"
 ```
+
+#### 20. Unicode 支持
+
+MoonJQ 完整支持 JSON 标准的 `\uXXXX` Unicode 转义序列，可以正确处理包括中文、日文、emoji 等在内的所有 Unicode 字符。
+
+```bash
+# 解析 Unicode 转义的中文字符
+moon run src -- "." test_unicode.json
+# 输出: {"greeting": "Hello 世界!", "name": "张三", "emoji": "❤️", "mixed": "ASCII and 中文"}
+
+# 提取 Unicode 字段
+moon run src -- ".name" test_unicode.json
+# 输出: "张三"
+
+# Unicode 转义在 JSON 字符串中
+moon run src -- "." '{"text": "\u4e2d\u6587"}'
+# 输出: {"text": "中文"}
+
+# Unicode emoji
+moon run src -- ".emoji" test_unicode.json
+# 输出: "❤️"
+```
+
+支持的 Unicode 范围：
+
+- 基本拉丁字母：`\u0041` (A)
+- 中日韩字符：`\u4e2d` (中)、`\u6587` (文)
+- 特殊符号和 emoji：`\u2764` (❤)
+- 完整的 Unicode BMP 平面（U+0000 到 U+FFFF）
 
 ## 项目结构
 

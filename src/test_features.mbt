@@ -1738,3 +1738,89 @@ test "read_and_iterate_from_file" {
     Err(e) => fail("JSON error: " + e)
   }
 }
+
+///|
+test "unicode_escape_basic" {
+  // 测试基本 Unicode 转义: \u0041 = 'A'
+  let json_str = "\"\\u0041\""
+  match parse_json(json_str) {
+    Ok(json) => inspect(json, content="String(\"A\")")
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "unicode_escape_chinese" {
+  // 测试中文字符: \u4e2d = '中'
+  let json_str = "\"\\u4e2d\\u6587\""
+  match parse_json(json_str) {
+    Ok(json) => inspect(json, content="String(\"中文\")")
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "unicode_escape_emoji" {
+  // 测试特殊符号: \u2764 = '❤'
+  let json_str = "\"\\u2764\""
+  match parse_json(json_str) {
+    Ok(json) => inspect(json, content="String(\"❤\")")
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "unicode_escape_mixed" {
+  // 测试混合 ASCII 和 Unicode 转义
+  let json_str = "\"Hello \\u4e16\\u754c!\""
+  match parse_json(json_str) {
+    Ok(json) => inspect(json, content="String(\"Hello 世界!\")")
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "unicode_escape_in_object" {
+  // 测试对象中的 Unicode 转义
+  let json_str = "{\"name\": \"\\u5f20\\u4e09\"}"
+  match parse_json(json_str) {
+    Ok(json) => {
+      let query_str = ".name"
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"张三\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "unicode_escape_invalid_short" {
+  // 测试不完整的 Unicode 转义（少于 4 位）
+  let json_str = "\"\\u041\""
+  match parse_json(json_str) {
+    Ok(_) => fail("Should have failed on incomplete unicode escape")
+    Err(e) =>
+      inspect(e, content="Invalid unicode escape: expected 4 hex digits")
+  }
+}
+
+///|
+test "unicode_escape_invalid_char" {
+  // 测试非十六进制字符
+  let json_str = "\"\\u00GH\""
+  match parse_json(json_str) {
+    Ok(_) => fail("Should have failed on invalid hex digit")
+    Err(e) =>
+      // 检查错误消息包含预期内容
+      if e.contains("Invalid unicode escape") {
+        () // 测试通过
+      } else {
+        fail("Expected error about invalid unicode escape, got: " + e)
+      }
+  }
+}

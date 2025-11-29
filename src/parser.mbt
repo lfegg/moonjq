@@ -7,6 +7,72 @@ struct Parser {
 }
 
 ///|
+/// 检查字符是否为数字 (0-9)。
+fn is_digit(c : Char) -> Bool {
+  c >= '0' && c <= '9'
+}
+
+///|
+/// 检查字符是否为字母或下划线 (用于标识符)。
+fn is_identifier_start(c : Char) -> Bool {
+  (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+}
+
+///|
+/// 检查字符是否可以在标识符中间出现。
+fn is_identifier_char(c : Char) -> Bool {
+  is_identifier_start(c) || is_digit(c)
+}
+
+///|
+/// 检查字符是否为十六进制数字 (0-9, a-f, A-F)。
+fn is_hex_digit(c : Char) -> Bool {
+  is_digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+}
+
+///|
+/// 将十六进制字符转换为数值 (0-15)。
+fn hex_to_int(c : Char) -> Int {
+  if c >= '0' && c <= '9' {
+    c.to_int() - '0'.to_int()
+  } else if c >= 'a' && c <= 'f' {
+    c.to_int() - 'a'.to_int() + 10
+  } else if c >= 'A' && c <= 'F' {
+    c.to_int() - 'A'.to_int() + 10
+  } else {
+    0
+  }
+}
+
+///|
+/// 内置关键字常量，用于避免硬编码字符串。
+let keyword_length : String = "length"
+
+///|
+let keyword_keys : String = "keys"
+
+///|
+let keyword_type : String = "type"
+
+///|
+let keyword_true : String = "true"
+
+///|
+let keyword_false : String = "false"
+
+///|
+let keyword_null : String = "null"
+
+///|
+let keyword_has : String = "has"
+
+///|
+let keyword_in : String = "in"
+
+///|
+let keyword_not : String = "not"
+
+///|
 /// 创建一个新的解析器实例。
 fn Parser::new(input : String) -> Parser {
   { input, pos: 0, len: input.length() }
@@ -104,11 +170,32 @@ fn Parser::parse_string(self : Parser) -> Result[String, String] {
           'r' => buf.write_char('\r')
           't' => buf.write_char('\t')
           'u' => {
-            // TODO: Handle unicode escapes properly
-            self.advance()
-            self.advance()
-            self.advance()
-            self.advance()
+            // Unicode 转义序列: \uXXXX (4个十六进制数字)
+            self.advance() // 跳过 'u'
+
+            // 检查是否有足够的字符来读取 4 个十六进制数字
+            let mut code_point = 0
+            for i = 0; i < 4; i = i + 1 {
+              if self.pos >= self.len {
+                return Err("Invalid unicode escape: expected 4 hex digits")
+              }
+              let c = self.input[self.pos].unsafe_to_char()
+              if not(is_hex_digit(c)) {
+                return Err("Invalid unicode escape: expected 4 hex digits")
+              }
+              code_point = code_point * 16 + hex_to_int(c)
+              self.advance()
+            }
+
+            // 将 Unicode 码点转换为字符
+            match code_point.to_char() {
+              Some(ch) => buf.write_char(ch)
+              None =>
+                return Err(
+                  "Invalid unicode code point: " + code_point.to_string(),
+                )
+            }
+            continue // 不需要再次 advance，因为已在循环中完成
           }
           _ => return Err("Invalid escape sequence")
         }
@@ -126,30 +213,36 @@ fn Parser::parse_string(self : Parser) -> Result[String, String] {
 ///|
 /// 解析 JSON 数字。
 /// 支持整数、浮点数和科学计数法。
+
+///|
+/// 解析数字（支持整数、小数、科学计数法）。
+/// 
+/// 支持格式：
+/// - 整数: 123, -456
+/// - 小数: 3.14, -2.5
+/// - 科学计数法: 1.5e10, -3.2E-5
 fn Parser::parse_number(self : Parser) -> Result[Double, String] {
   let start = self.pos
+
+  // 可选的负号
   if self.pos < self.len && self.input[self.pos].unsafe_to_char() == '-' {
     self.advance()
   }
-  while self.pos < self.len {
-    let c = self.input[self.pos].unsafe_to_char()
-    if c >= '0' && c <= '9' {
-      self.advance()
-    } else {
-      break
-    }
+
+  // 整数部分
+  while self.pos < self.len && is_digit(self.input[self.pos].unsafe_to_char()) {
+    self.advance()
   }
+
+  // 小数部分
   if self.pos < self.len && self.input[self.pos].unsafe_to_char() == '.' {
     self.advance()
-    while self.pos < self.len {
-      let c = self.input[self.pos].unsafe_to_char()
-      if c >= '0' && c <= '9' {
-        self.advance()
-      } else {
-        break
-      }
+    while self.pos < self.len && is_digit(self.input[self.pos].unsafe_to_char()) {
+      self.advance()
     }
   }
+
+  // 指数部分
   if self.pos < self.len {
     let c = self.input[self.pos].unsafe_to_char()
     if c == 'e' || c == 'E' {
@@ -160,13 +253,9 @@ fn Parser::parse_number(self : Parser) -> Result[Double, String] {
           self.advance()
         }
       }
-      while self.pos < self.len {
-        let c = self.input[self.pos].unsafe_to_char()
-        if c >= '0' && c <= '9' {
-          self.advance()
-        } else {
-          break
-        }
+      while self.pos < self.len &&
+            is_digit(self.input[self.pos].unsafe_to_char()) {
+        self.advance()
       }
     }
   }
@@ -204,22 +293,22 @@ fn Parser::parse_json_value(self : Parser) -> Result[Json, String] {
         Err(e) => Err(e)
       }
     Some('t') =>
-      if self.match_string("true") {
-        self.pos = self.pos + 4
+      if self.match_string(keyword_true) {
+        self.pos = self.pos + keyword_true.length()
         Ok(Json::Bool(true))
       } else {
         Err("Expected 'true'")
       }
     Some('f') =>
-      if self.match_string("false") {
-        self.pos = self.pos + 5
+      if self.match_string(keyword_false) {
+        self.pos = self.pos + keyword_false.length()
         Ok(Json::Bool(false))
       } else {
         Err("Expected 'false'")
       }
     Some('n') =>
-      if self.match_string("null") {
-        self.pos = self.pos + 4
+      if self.match_string(keyword_null) {
+        self.pos = self.pos + keyword_null.length()
         Ok(Json::Null)
       } else {
         Err("Expected 'null'")
@@ -866,7 +955,7 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
       self.advance()
       match self.peek() {
         Some(c) =>
-          if c >= '0' && c <= '9' {
+          if is_digit(c) {
             match self.parse_number() {
               Ok(n) => Ok(Query::Literal(Json::Number(-n)))
               Err(e) => Err(e)
@@ -878,34 +967,27 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
       }
     }
     Some(c) =>
-      if c >= '0' && c <= '9' {
+      if is_digit(c) {
         match self.parse_number() {
           Ok(n) => Ok(Query::Literal(Json::Number(n)))
           Err(e) => Err(e)
         }
-      } else if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' {
+      } else if is_identifier_start(c) {
         let start = self.pos
-        while self.pos < self.len {
-          let c = self.input[self.pos].unsafe_to_char()
-          if (c >= 'a' && c <= 'z') ||
-            (c >= 'A' && c <= 'Z') ||
-            (c >= '0' && c <= '9') ||
-            c == '_' {
-            self.advance()
-          } else {
-            break
-          }
+        while self.pos < self.len &&
+              is_identifier_char(self.input[self.pos].unsafe_to_char()) {
+          self.advance()
         }
         let ident = self.input
           .view(start_offset=start, end_offset=self.pos)
           .to_string()
         match ident {
-          "length" => Ok(Query::Length)
-          "keys" => Ok(Query::Keys)
-          "type" => Ok(Query::Type)
-          "true" => Ok(Query::Literal(Json::Bool(true)))
-          "false" => Ok(Query::Literal(Json::Bool(false)))
-          "null" => Ok(Query::Literal(Json::Null))
+          _ if ident == keyword_length => Ok(Query::Length)
+          _ if ident == keyword_keys => Ok(Query::Keys)
+          _ if ident == keyword_type => Ok(Query::Type)
+          _ if ident == keyword_true => Ok(Query::Literal(Json::Bool(true)))
+          _ if ident == keyword_false => Ok(Query::Literal(Json::Bool(false)))
+          _ if ident == keyword_null => Ok(Query::Literal(Json::Null))
           "if" => {
             self.skip_whitespace()
             match self.parse_query_expr() {
@@ -960,7 +1042,7 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
               Err("Expected '(' after select")
             }
           }
-          "has" => {
+          _ if ident == keyword_has => {
             self.skip_whitespace()
             if self.peek() == Some('(') {
               self.advance()
@@ -981,7 +1063,7 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
               Err("Expected '(' after has")
             }
           }
-          "in" => {
+          _ if ident == keyword_in => {
             self.skip_whitespace()
             if self.peek() == Some('(') {
               self.advance()
@@ -1071,7 +1153,7 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
           "tostring" => Ok(Query::ToString)
           "tonumber" => Ok(Query::ToNumber)
           // 逻辑非
-          "not" => {
+          _ if ident == keyword_not => {
             self.skip_whitespace()
             if self.peek() == Some('(') {
               self.advance()
