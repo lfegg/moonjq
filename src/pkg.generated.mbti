@@ -95,6 +95,7 @@ pub enum Query {
   And(Query, Query)
   Or(Query, Query)
   Not(Query)
+  Alternative(Query, Query)
   ToString
   ToNumber
   Exit

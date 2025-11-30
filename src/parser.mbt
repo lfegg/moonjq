@@ -323,7 +323,7 @@ fn Parser::parse_sequence(self : Parser) -> Result[Query, String] {
 ///|
 /// 解析逻辑或操作符 (or)。
 fn Parser::parse_or(self : Parser) -> Result[Query, String] {
-  match self.parse_and() {
+  match self.parse_alternative() {
     Ok(left) => {
       self.skip_whitespace()
       if self.match_keyword("or") {
@@ -331,6 +331,27 @@ fn Parser::parse_or(self : Parser) -> Result[Query, String] {
         self.skip_whitespace()
         match self.parse_or() {
           Ok(right) => Ok(Query::Or(left, right))
+          Err(e) => Err(e)
+        }
+      } else {
+        Ok(left)
+      }
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+/// 解析空值合并操作符 (//)。
+fn Parser::parse_alternative(self : Parser) -> Result[Query, String] {
+  match self.parse_and() {
+    Ok(left) => {
+      self.skip_whitespace()
+      if self.match_string("//") {
+        self.pos = self.pos + 2
+        self.skip_whitespace()
+        match self.parse_alternative() {
+          Ok(right) => Ok(Query::Alternative(left, right))
           Err(e) => Err(e)
         }
       } else {
@@ -466,6 +487,12 @@ fn Parser::parse_mul_div_mod(self : Parser) -> Result[Query, String] {
             Err(e) => return Err(e)
           }
         } else if self.peek() == Some('/') {
+          // Check if it's // (alternative operator) or just / (division)
+          if self.pos + 1 < self.len &&
+            self.input[self.pos + 1].unsafe_to_char() == '/' {
+            // It's //, not our job here - break and let parse_alternative handle it
+            break
+          }
           self.advance()
           match self.parse_pipe() {
             Ok(right) => {

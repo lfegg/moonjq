@@ -811,6 +811,22 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
       }
     }
 
+    // 空值合并 'expr1 // expr2'
+    // 如果左侧是 null 或 false，返回右侧；否则返回左侧
+    Alternative(left, right) => {
+      let left_results = eval(json, left)
+      if left_results.length() == 0 {
+        eval(json, right)
+      } else {
+        let left_val = left_results[0]
+        match left_val {
+          Null => eval(json, right)
+          Bool(false) => eval(json, right)
+          _ => left_results
+        }
+      }
+    }
+
     // 转换为字符串 'tostring'
     ToString =>
       match json {
