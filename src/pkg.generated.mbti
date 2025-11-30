@@ -75,6 +75,23 @@ pub enum Query {
   Has(Query)
   In(Query)
   Conditional(Query, Query, Query)
+  Map(Query)
+  Add
+  Min
+  Max
+  Sort
+  SortBy(Query)
+  GroupBy(Query)
+  Unique
+  UniqueBy(Query)
+  Reverse
+  Flatten
+  FlattenDepth(Int)
+  Contains(Query)
+  First
+  FirstExpr(Query)
+  Last
+  LastExpr(Query)
   Exit
 }
 impl Eq for Query

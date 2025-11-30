@@ -611,59 +611,98 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
 
       // After parsing .field, check for [index/slice] without a dot
       // This allows .field[0] or .field[1:3] syntax
-      while self.peek() == Some('[') {
-        self.advance()
-        if self.peek() == Some(']') {
+      // Also check for继续的字段访问，如 .field[].subfield
+      while true {
+        self.skip_whitespace()
+        if self.peek() == Some('[') {
           self.advance()
-          current = Query::Pipe(current, Query::Iterator)
-        } else {
-          // Try to parse slice [start:end] or index [n]
-          self.skip_whitespace()
-          let mut start : Int? = None
-          let mut end : Int? = None
-
-          // Check if starts with colon (means [:end])
-          if self.peek() != Some(':') {
-            match self.parse_number() {
-              Ok(n) => {
-                start = Some(n.to_int())
-                self.skip_whitespace()
-              }
-              Err(_) => return Err("Expected number or ':'")
-            }
-          }
-
-          // Check for colon (slice operator)
-          if self.peek() == Some(':') {
+          if self.peek() == Some(']') {
             self.advance()
+            current = Query::Pipe(current, Query::Iterator)
+          } else {
+            // Try to parse slice [start:end] or index [n]
             self.skip_whitespace()
-            // Check if there's an end value
-            if self.peek() != Some(']') {
+            let mut start : Int? = None
+            let mut end : Int? = None
+
+            // Check if starts with colon (means [:end])
+            if self.peek() != Some(':') {
               match self.parse_number() {
                 Ok(n) => {
-                  end = Some(n.to_int())
+                  start = Some(n.to_int())
                   self.skip_whitespace()
                 }
-                Err(_) => return Err("Expected number or ']'")
+                Err(_) => return Err("Expected number or ':'")
               }
             }
-            // It's a slice
-            if self.peek() == Some(']') {
+
+            // Check for colon (slice operator)
+            if self.peek() == Some(':') {
               self.advance()
-              current = Query::Pipe(current, Query::Slice(start, end))
+              self.skip_whitespace()
+              // Check if there's an end value
+              if self.peek() != Some(']') {
+                match self.parse_number() {
+                  Ok(n) => {
+                    end = Some(n.to_int())
+                    self.skip_whitespace()
+                  }
+                  Err(_) => return Err("Expected number or ']'")
+                }
+              }
+              // It's a slice
+              if self.peek() == Some(']') {
+                self.advance()
+                current = Query::Pipe(current, Query::Slice(start, end))
+              } else {
+                return Err("Expected ']'")
+              }
+              // It's a single index
+            } else if self.peek() == Some(']') {
+              self.advance()
+              match start {
+                Some(idx) => current = Query::Pipe(current, Query::Index(idx))
+                None => return Err("Expected index")
+              }
             } else {
-              return Err("Expected ']'")
+              return Err("Expected ']' or ':'")
             }
-            // It's a single index
-          } else if self.peek() == Some(']') {
-            self.advance()
-            match start {
-              Some(idx) => current = Query::Pipe(current, Query::Index(idx))
-              None => return Err("Expected index")
-            }
-          } else {
-            return Err("Expected ']' or ':'")
           }
+        } else if self.peek() == Some('.') {
+          // Continue parsing fields after [] or [index]
+          self.advance()
+          match self.peek() {
+            Some('"') =>
+              match self.parse_string() {
+                Ok(s) => current = Query::Pipe(current, Query::Field(s))
+                Err(e) => return Err(e)
+              }
+            Some(c) =>
+              if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' {
+                let start = self.pos
+                while self.pos < self.len {
+                  let ch = self.input[self.pos].unsafe_to_char()
+                  if (ch >= 'a' && ch <= 'z') ||
+                    (ch >= 'A' && ch <= 'Z') ||
+                    (ch >= '0' && ch <= '9') ||
+                    ch == '_' {
+                    self.advance()
+                  } else {
+                    break
+                  }
+                }
+                let field = self.input
+                  .view(start_offset=start, end_offset=self.pos)
+                  .to_string()
+                current = Query::Pipe(current, Query::Field(field))
+              } else {
+                // Just a dot, treat as identity
+                break
+              }
+            None => break
+          }
+        } else {
+          break
         }
       }
 
@@ -770,7 +809,66 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
           "length" => Ok(Query::Length)
           "keys" => Ok(Query::Keys)
           "type" => Ok(Query::Type)
+          "add" => Ok(Query::Add)
+          "min" => Ok(Query::Min)
+          "max" => Ok(Query::Max)
+          "sort" => Ok(Query::Sort)
+          "unique" => Ok(Query::Unique)
+          "reverse" => Ok(Query::Reverse)
+          "flatten" => {
+            // Check if followed by (depth)
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              self.skip_whitespace()
+              match self.parse_number() {
+                Ok(n) => {
+                  self.skip_whitespace()
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::FlattenDepth(n.to_int()))
+                  } else {
+                    Err("Expected ')' after flatten depth")
+                  }
+                }
+                Err(_) => Err("Expected number in flatten(depth)")
+              }
+            } else {
+              Ok(Query::Flatten)
+            }
+          }
           "if" => self.parse_conditional()
+          "map" => self.parse_function_with_arg("map", fn(q) { Query::Map(q) })
+          "sort_by" =>
+            self.parse_function_with_arg("sort_by", fn(q) { Query::SortBy(q) })
+          "group_by" =>
+            self.parse_function_with_arg("group_by", fn(q) { Query::GroupBy(q) })
+          "unique_by" =>
+            self.parse_function_with_arg("unique_by", fn(q) {
+              Query::UniqueBy(q)
+            })
+          "contains" =>
+            self.parse_function_with_arg("contains", fn(q) {
+              Query::Contains(q)
+            })
+          "first" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.parse_function_with_arg("first", fn(q) {
+                Query::FirstExpr(q)
+              })
+            } else {
+              Ok(Query::First)
+            }
+          }
+          "last" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.parse_function_with_arg("last", fn(q) { Query::LastExpr(q) })
+            } else {
+              Ok(Query::Last)
+            }
+          }
           "true" => Ok(Query::Literal(Json::Bool(true)))
           "false" => Ok(Query::Literal(Json::Bool(false)))
           "null" => Ok(Query::Literal(Json::Null))
@@ -939,6 +1037,31 @@ fn Parser::match_keyword(self : Parser, keyword : String) -> Bool {
     }
   }
   matches
+}
+
+///|
+/// 解析带参数的函数调用: func(expr)
+fn Parser::parse_function_with_arg(
+  self : Parser,
+  func_name : String,
+  builder : (Query) -> Query,
+) -> Result[Query, String] {
+  self.skip_whitespace()
+  if self.peek() == Some('(') {
+    self.advance()
+    match self.parse_query_expr() {
+      Ok(q) =>
+        if self.peek() == Some(')') {
+          self.advance()
+          Ok(builder(q))
+        } else {
+          Err("Expected ')' after " + func_name)
+        }
+      Err(e) => Err(e)
+    }
+  } else {
+    Err("Expected '(' after " + func_name)
+  }
 }
 
 ///|

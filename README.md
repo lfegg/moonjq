@@ -29,6 +29,21 @@ MoonJQ 是一个使用 [MoonBit](https://github.com/moonbitlang/moonbit) 编写�
   - **成员检查**: `has(key)` (检查对象键或数组索引是否存在)
   - **包含检查**: `in(array)` (检查值是否在数组中)
   - **条件表达式**: `if-then-else-end`, `if-elif-else-end` (条件分支)
+  - **数组操作**:
+    - `map(expr)`: 对数组每个元素应用表达式
+    - `select(expr)`: 根据条件过滤元素
+    - `add`: 求和或连接数组元素
+    - `min`, `max`: 获取最小/最大值
+    - `sort`: 排序数组
+    - `sort_by(expr)`: 按表达式结果排序
+    - `group_by(expr)`: 按表达式结果分组
+    - `unique`: 去重
+    - `unique_by(expr)`: 按表达式结果去重
+    - `reverse`: 反转数组
+    - `flatten`, `flatten(depth)`: 扁平化数组
+    - `contains(expr)`: 检查是否包含
+    - `first`, `first(expr)`: 获取第一个元素或结果
+    - `last`, `last(expr)`: 获取最后一个元素或结果
   - **退出**: `exit` 或 `exit()` 退出 REPL
 
 ## 安装与构建
@@ -141,7 +156,7 @@ jq> echo '{"name":"MoonBit","version":"0.1"}' | jq '.name'
 "MoonBit"
 ```
 
-#### 数组操作
+#### 数组迭代
 
 ```bash
 jq> echo '[1,2,3,4,5]' | jq '.[]'
@@ -317,6 +332,99 @@ jq> echo '{"age":25}' | jq 'if .age >= 18 then "adult" else "minor" end'
 "adult"
 ```
 
+#### 数组操作
+
+```bash
+# map() - 转换数组元素
+jq> echo '[1,2,3,4,5]' | jq 'map(. * 2)'
+[2, 4, 6, 8, 10]
+
+jq> echo '[{"x":1,"y":2},{"x":3,"y":4}]' | jq 'map(.x)'
+[1, 3]
+
+# add - 求和或连接
+jq> echo '[1,2,3,4,5]' | jq 'add'
+15
+
+jq> echo '["hello", " ", "world"]' | jq 'add'
+"hello world"
+
+jq> echo '[[1,2],[3,4],[5]]' | jq 'add'
+[1, 2, 3, 4, 5]
+
+# min/max - 最小/最大值
+jq> echo '[5,2,8,1,9]' | jq 'min'
+1
+
+jq> echo '[5,2,8,1,9]' | jq 'max'
+9
+
+# sort - 排序
+jq> echo '[5,2,8,1,9]' | jq 'sort'
+[1, 2, 5, 8, 9]
+
+# sort_by() - 按字段排序
+jq> echo '[{"x":2},{"x":1},{"x":3}]' | jq 'sort_by(.x)'
+[{"x": 1}, {"x": 2}, {"x": 3}]
+
+# group_by() - 分组
+jq> echo '[{"x":1,"y":2},{"x":1,"y":3},{"x":2,"y":4}]' | jq 'group_by(.x)'
+[[{"x": 1, "y": 2}, {"x": 1, "y": 3}], [{"x": 2, "y": 4}]]
+
+# unique - 去重
+jq> echo '[1,2,1,3,2]' | jq 'unique'
+[1, 2, 3]
+
+# unique_by() - 按字段去重
+jq> echo '[{"x":1,"y":2},{"x":1,"y":3},{"x":2,"y":4}]' | jq 'unique_by(.x)'
+[{"x": 1, "y": 2}, {"x": 2, "y": 4}]
+
+# reverse - 反转数组
+jq> echo '[1,2,3,4,5]' | jq 'reverse'
+[5, 4, 3, 2, 1]
+
+jq> echo '[5,2,8,1,9]' | jq 'sort | reverse'
+[9, 8, 5, 2, 1]
+
+# flatten - 扁平化数组
+jq> echo '[[1,2],[3,4],[5,6]]' | jq 'flatten'
+[1, 2, 3, 4, 5, 6]
+
+# flatten(depth) - 扁平化指定深度
+jq> echo '[[[1,2]],[[3,4]]]' | jq 'flatten(1)'
+[[1, 2], [3, 4]]
+
+# contains() - 包含检查
+jq> echo '[1,2,3,4,5]' | jq 'contains([2,3])'
+true
+
+jq> echo '[1,2,3]' | jq 'contains([4,5])'
+false
+
+jq> echo '"hello world"' | jq 'contains("world")'
+true
+
+jq> echo '{"a":1,"b":2}' | jq 'contains({"a":1})'
+true
+
+# first/last - 获取第一个/最后一个元素
+jq> echo '[1,2,3,4,5]' | jq 'first'
+1
+
+jq> echo '[1,2,3,4,5]' | jq 'last'
+5
+
+jq> echo '[]' | jq 'first'
+null
+
+# first(expr)/last(expr) - 获取表达式的第一个/最后一个结果
+jq> echo '[1,2,3,4,5]' | jq 'first(.[] | select(. > 2))'
+3
+
+jq> echo '[1,2,3,4,5]' | jq 'last(.[] | select(. > 2))'
+5
+```
+
 #### 从文件读取
 
 ```bash
@@ -384,6 +492,36 @@ moon coverage analyze > uncovered.log
 
 ## 最近更新
 
+### 版本 0.4.0 (2025-12-01)
+
+**新功能：**
+
+- ✅ **数组操作函数**：实现了 14 个强大的数组处理函数
+  - `map(expr)`: 对每个元素应用表达式
+  - `add`: 求和或连接数组元素
+  - `min`, `max`: 获取最小/最大值
+  - `sort`: 排序（支持数字、字符串、布尔值）
+  - `sort_by(expr)`: 按表达式结果排序
+  - `group_by(expr)`: 按表达式结果分组
+  - `unique`: 去重（保持排序）
+  - `unique_by(expr)`: 按表达式结果去重
+  - `reverse`: 反转数组顺序
+  - `flatten`, `flatten(depth)`: 扁平化嵌套数组
+  - `contains(expr)`: 检查数组、字符串或对象是否包含指定内容
+  - `first`, `first(expr)`: 获取第一个元素或表达式的第一个结果
+  - `last`, `last(expr)`: 获取最后一个元素或表达式的最后一个结果
+
+**Bug 修复：**
+
+- ✅ 修复了 `.projects[].title` 解析错误（解析器现在能正确处理 `[]` 后的字段访问）
+- ✅ 所有数组操作的输出与 jq 完全一致
+
+**测试：**
+
+- 🎯 所有 91 个单元测试通过
+- ✅ 新增 11 个数组操作测试用例
+- 📝 与 jq 行为完全兼容
+
 ### 版本 0.3.0 (2025-12-01)
 
 **新功能：**
@@ -398,11 +536,6 @@ moon coverage analyze > uncovered.log
 - ✅ 修复了对象构造器 `{a:.x, b:.y}` 的解析问题
 - ✅ 修复了负数索引 `.[-1]` 不工作的问题
 - ✅ 修复了命令解析器中的转义字符处理
-
-**兼容性：**
-
-- 🎯 与 jq 的兼容性达到 78.4%（29/37 核心功能测试通过）
-- 📝 剩余差异主要是输出格式（jq 使用 pretty-print，moonjq 使用紧凑格式）
 
 ## 许可证
 

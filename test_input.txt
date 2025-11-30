@@ -1,0 +1,1 @@
+jq '.projects[].title' test.json

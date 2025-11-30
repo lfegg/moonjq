@@ -344,6 +344,418 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         _ => [Json::Null] // 其他类型返回 null
       }
 
+    // 对数组每个元素应用表达式 'map(expr)'
+    Map(expr) =>
+      match json {
+        Array(arr) => {
+          let results = []
+          for item in arr {
+            let item_results = eval(item, expr)
+            if item_results.length() > 0 {
+              results.push(item_results[0])
+            }
+          }
+          [Json::Array(results)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组求和或对象合并 'add'
+    Add =>
+      match json {
+        Array(arr) =>
+          if arr.length() == 0 {
+            [Json::Null]
+          } else {
+            // Determine type from first element
+            match arr[0] {
+              Number(_) => {
+                let mut sum = 0.0
+                for item in arr {
+                  match item {
+                    Number(n) => sum = sum + n
+                    _ => ()
+                  }
+                }
+                [Json::Number(sum)]
+              }
+              String(_) => {
+                let mut result = ""
+                for item in arr {
+                  match item {
+                    String(s) => result = result + s
+                    _ => ()
+                  }
+                }
+                [Json::String(result)]
+              }
+              Array(_) => {
+                let result = []
+                for item in arr {
+                  match item {
+                    Array(a) => result.append(a)
+                    _ => ()
+                  }
+                }
+                [Json::Array(result)]
+              }
+              Object(_) => {
+                let result = Map::new()
+                for item in arr {
+                  match item {
+                    Object(obj) =>
+                      for key in obj.keys() {
+                        match obj.get(key) {
+                          Some(value) => result.set(key, value)
+                          None => ()
+                        }
+                      }
+                    _ => ()
+                  }
+                }
+                [Json::Object(result)]
+              }
+              _ => [Json::Null]
+            }
+          }
+        _ => [Json::Null]
+      }
+
+    // 数组最小值 'min'
+    Min =>
+      match json {
+        Array(arr) =>
+          if arr.length() == 0 {
+            [Json::Null]
+          } else {
+            let mut min_val = arr[0]
+            for item in arr {
+              if compare_json(item, min_val) < 0 {
+                min_val = item
+              }
+            }
+            [min_val]
+          }
+        _ => [Json::Null]
+      }
+
+    // 数组最大值 'max'
+    Max =>
+      match json {
+        Array(arr) =>
+          if arr.length() == 0 {
+            [Json::Null]
+          } else {
+            let mut max_val = arr[0]
+            for item in arr {
+              if compare_json(item, max_val) > 0 {
+                max_val = item
+              }
+            }
+            [max_val]
+          }
+        _ => [Json::Null]
+      }
+
+    // 数组排序 'sort'
+    Sort =>
+      match json {
+        Array(arr) => {
+          let sorted = arr.copy()
+          sort_json_array(sorted)
+          [Json::Array(sorted)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 按表达式排序 'sort_by(expr)'
+    SortBy(expr) =>
+      match json {
+        Array(arr) => {
+          // Create pairs of (original, key)
+          let pairs : Array[(Json, Json)] = []
+          for item in arr {
+            let key_results = eval(item, expr)
+            let key = if key_results.length() > 0 {
+              key_results[0]
+            } else {
+              Json::Null
+            }
+            pairs.push((item, key))
+          }
+          // Sort by key
+          sort_pairs_by_second(pairs)
+          // Extract sorted values
+          let sorted = []
+          for pair in pairs {
+            sorted.push(pair.0)
+          }
+          [Json::Array(sorted)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 按表达式分组 'group_by(expr)'
+    GroupBy(expr) =>
+      match json {
+        Array(arr) => {
+          // First sort by the expression
+          let pairs : Array[(Json, Json)] = []
+          for item in arr {
+            let key_results = eval(item, expr)
+            let key = if key_results.length() > 0 {
+              key_results[0]
+            } else {
+              Json::Null
+            }
+            pairs.push((item, key))
+          }
+          sort_pairs_by_second(pairs)
+
+          // Group consecutive items with same key
+          let groups = []
+          if pairs.length() > 0 {
+            let mut current_group = [pairs[0].0]
+            let mut current_key = pairs[0].1
+            for i = 1; i < pairs.length(); i = i + 1 {
+              if pairs[i].1 == current_key {
+                current_group.push(pairs[i].0)
+              } else {
+                groups.push(Json::Array(current_group))
+                current_group = [pairs[i].0]
+                current_key = pairs[i].1
+              }
+            }
+            groups.push(Json::Array(current_group))
+          }
+          [Json::Array(groups)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组去重 'unique'
+    Unique =>
+      match json {
+        Array(arr) => {
+          let sorted = arr.copy()
+          sort_json_array(sorted)
+          let unique_arr = []
+          if sorted.length() > 0 {
+            unique_arr.push(sorted[0])
+            for i = 1; i < sorted.length(); i = i + 1 {
+              if sorted[i] != sorted[i - 1] {
+                unique_arr.push(sorted[i])
+              }
+            }
+          }
+          [Json::Array(unique_arr)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 按表达式去重 'unique_by(expr)'
+    UniqueBy(expr) =>
+      match json {
+        Array(arr) => {
+          // Create pairs and sort
+          let pairs : Array[(Json, Json)] = []
+          for item in arr {
+            let key_results = eval(item, expr)
+            let key = if key_results.length() > 0 {
+              key_results[0]
+            } else {
+              Json::Null
+            }
+            pairs.push((item, key))
+          }
+          sort_pairs_by_second(pairs)
+
+          // Keep first of each unique key
+          let unique_arr = []
+          if pairs.length() > 0 {
+            unique_arr.push(pairs[0].0)
+            let mut prev_key = pairs[0].1
+            for i = 1; i < pairs.length(); i = i + 1 {
+              if pairs[i].1 != prev_key {
+                unique_arr.push(pairs[i].0)
+                prev_key = pairs[i].1
+              }
+            }
+          }
+          [Json::Array(unique_arr)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组反转 'reverse'
+    Reverse =>
+      match json {
+        Array(arr) => {
+          let reversed = []
+          for i = arr.length() - 1; i >= 0; i = i - 1 {
+            reversed.push(arr[i])
+          }
+          [Json::Array(reversed)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 数组扁平化 'flatten'
+    Flatten =>
+      match json {
+        Array(arr) => {
+          let result = []
+          for item in arr {
+            match item {
+              Array(sub) => result.append(sub)
+              _ => result.push(item)
+            }
+          }
+          [Json::Array(result)]
+        }
+        _ => [Json::Null]
+      }
+
+    // 指定深度的数组扁平化 'flatten(depth)'
+    FlattenDepth(depth) =>
+      match json {
+        Array(arr) => {
+          fn flatten_recursive(items : Array[Json], d : Int) -> Array[Json] {
+            if d <= 0 {
+              return items
+            }
+            let result = []
+            for item in items {
+              match item {
+                Array(sub) =>
+                  if d > 1 {
+                    result.append(flatten_recursive(sub, d - 1))
+                  } else {
+                    result.append(sub)
+                  }
+                _ => result.push(item)
+              }
+            }
+            result
+          }
+
+          [Json::Array(flatten_recursive(arr, depth))]
+        }
+        _ => [Json::Null]
+      }
+
+    // 检查是否包含 'contains(value)'
+    Contains(query) =>
+      match json {
+        Array(arr) => {
+          let search_results = eval(json, query)
+          if search_results.length() == 0 {
+            [Json::Bool(false)]
+          } else {
+            let search_val = search_results[0]
+            match search_val {
+              Array(search_arr) => {
+                // Check if all elements in search_arr are in arr
+                let mut all_found = true
+                for search_item in search_arr {
+                  let mut found = false
+                  for item in arr {
+                    if item == search_item {
+                      found = true
+                      break
+                    }
+                  }
+                  if not(found) {
+                    all_found = false
+                    break
+                  }
+                }
+                [Json::Bool(all_found)]
+              }
+              _ => {
+                // Check if single value is in array
+                let mut found = false
+                for item in arr {
+                  if item == search_val {
+                    found = true
+                    break
+                  }
+                }
+                [Json::Bool(found)]
+              }
+            }
+          }
+        }
+        String(s) =>
+          match eval(json, query) {
+            [String(search)] => [Json::Bool(s.contains(search))]
+            _ => [Json::Bool(false)]
+          }
+        Object(obj) =>
+          match eval(json, query) {
+            [Object(search_obj)] => {
+              // Check if all key-value pairs in search_obj exist in obj
+              let mut all_match = true
+              for key in search_obj.keys() {
+                match (obj.get(key), search_obj.get(key)) {
+                  (Some(v1), Some(v2)) =>
+                    if v1 != v2 {
+                      all_match = false
+                      break
+                    }
+                  (None, _) => {
+                    all_match = false
+                    break
+                  }
+                  _ => ()
+                }
+              }
+              [Json::Bool(all_match)]
+            }
+            _ => [Json::Bool(false)]
+          }
+        _ => [Json::Bool(false)]
+      }
+
+    // 获取第一个元素 'first'
+    First =>
+      match json {
+        Array(arr) => if arr.length() > 0 { [arr[0]] } else { [Json::Null] }
+        _ => [Json::Null]
+      }
+
+    // 获取表达式的第一个结果 'first(expr)'
+    FirstExpr(expr) => {
+      let results = eval(json, expr)
+      if results.length() > 0 {
+        [results[0]]
+      } else {
+        [Json::Null]
+      }
+    }
+
+    // 获取最后一个元素 'last'
+    Last =>
+      match json {
+        Array(arr) =>
+          if arr.length() > 0 {
+            [arr[arr.length() - 1]]
+          } else {
+            [Json::Null]
+          }
+        _ => [Json::Null]
+      }
+
+    // 获取表达式的最后一个结果 'last(expr)'
+    LastExpr(expr) => {
+      let results = eval(json, expr)
+      if results.length() > 0 {
+        [results[results.length() - 1]]
+      } else {
+        [Json::Null]
+      }
+    }
+
     // 退出 REPL 'exit' 或 'exit()'
     Exit =>
       // Return a special marker that REPL will recognize
@@ -523,7 +935,85 @@ fn apply_binary_op(op : Op, l : Json, r : Json) -> Json {
 /// 比较两个 JSON 值的大小。
 /// 返回值: -1 (l < r), 0 (l == r), 1 (l > r)
 /// jq 的排序规则: null < false < true < number < string < array < object
-fn compare_values(l : Json, r : Json) -> Int {
+
+///|
+/// 排序辅助函数 - 使用快速排序
+fn sort_json_array(arr : Array[Json]) -> Unit {
+  fn quicksort(left : Int, right : Int) -> Unit {
+    if left < right {
+      let pivot = arr[(left + right) / 2]
+      let mut i = left
+      let mut j = right
+      while i <= j {
+        while compare_json(arr[i], pivot) < 0 {
+          i = i + 1
+        }
+        while compare_json(arr[j], pivot) > 0 {
+          j = j - 1
+        }
+        if i <= j {
+          let temp = arr[i]
+          arr[i] = arr[j]
+          arr[j] = temp
+          i = i + 1
+          j = j - 1
+        }
+      }
+      if left < j {
+        quicksort(left, j)
+      }
+      if i < right {
+        quicksort(i, right)
+      }
+    }
+  }
+
+  if arr.length() > 1 {
+    quicksort(0, arr.length() - 1)
+  }
+}
+
+///|
+/// 排序元组数组（按第二个元素排序）
+fn sort_pairs_by_second(arr : Array[(Json, Json)]) -> Unit {
+  fn quicksort(left : Int, right : Int) -> Unit {
+    if left < right {
+      let pivot = arr[(left + right) / 2].1
+      let mut i = left
+      let mut j = right
+      while i <= j {
+        while compare_json(arr[i].1, pivot) < 0 {
+          i = i + 1
+        }
+        while compare_json(arr[j].1, pivot) > 0 {
+          j = j - 1
+        }
+        if i <= j {
+          let temp = arr[i]
+          arr[i] = arr[j]
+          arr[j] = temp
+          i = i + 1
+          j = j - 1
+        }
+      }
+      if left < j {
+        quicksort(left, j)
+      }
+      if i < right {
+        quicksort(i, right)
+      }
+    }
+  }
+
+  if arr.length() > 1 {
+    quicksort(0, arr.length() - 1)
+  }
+}
+
+///|
+/// 比较两个 JSON 值的大小
+/// 返回: -1 表示 l < r，0 表示 l == r，1 表示 l > r
+fn compare_json(l : Json, r : Json) -> Int {
   match (l, r) {
     (Number(a), Number(b)) => if a < b { -1 } else if a > b { 1 } else { 0 }
     (String(a), String(b)) => if a < b { -1 } else if a > b { 1 } else { 0 }
@@ -531,6 +1021,26 @@ fn compare_values(l : Json, r : Json) -> Int {
     (Null, Null) => 0
     (Null, _) => -1 // Null 最小
     (_, Null) => 1
-    _ => 0 // 不同类型比较的简单回退（实际 jq 规则更复杂，这里简化处理）
+    (Array(a), Array(b)) => {
+      for i = 0; i < a.length() && i < b.length(); i = i + 1 {
+        let cmp = compare_json(a[i], b[i])
+        if cmp != 0 {
+          return cmp
+        }
+      }
+      if a.length() < b.length() {
+        -1
+      } else if a.length() > b.length() {
+        1
+      } else {
+        0
+      }
+    }
+    _ => 0 // 不同类型比较的简单回退
   }
+}
+
+///|
+fn compare_values(l : Json, r : Json) -> Int {
+  compare_json(l, r)
 }
