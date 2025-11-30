@@ -2,8 +2,8 @@
 /// 解析器结构体，用于维护解析状态。
 struct Parser {
   input : String // 输入字符串
-  mut pos : Int  // 当前解析位置
-  len : Int      // 输入字符串长度
+  mut pos : Int // 当前解析位置
+  len : Int // 输入字符串长度
 }
 
 ///|
@@ -138,9 +138,10 @@ fn Parser::parse_number(self : Parser) -> Result[Double, String] {
       }
     }
   }
-  
   try {
-    let num_str = self.input.view(start_offset=start, end_offset=self.pos).to_string()
+    let num_str = self.input
+      .view(start_offset=start, end_offset=self.pos)
+      .to_string()
     Ok(@strconv.parse_double(num_str))
   } catch {
     _ => Err("Invalid number format")
@@ -154,7 +155,8 @@ fn Parser::match_string(self : Parser, s : String) -> Bool {
   if self.pos + len > self.len {
     return false
   }
-  self.input.view(start_offset=self.pos, end_offset=self.pos+len).to_string() == s
+  self.input.view(start_offset=self.pos, end_offset=self.pos + len).to_string() ==
+  s
 }
 
 ///|
@@ -164,37 +166,33 @@ fn Parser::parse_json_value(self : Parser) -> Result[Json, String] {
   match self.peek() {
     Some('{') => self.parse_object()
     Some('[') => self.parse_array()
-    Some('"') => {
+    Some('"') =>
       match self.parse_string() {
         Ok(s) => Ok(Json::String(s))
         Err(e) => Err(e)
       }
-    }
-    Some('t') => {
+    Some('t') =>
       if self.match_string("true") {
         self.pos = self.pos + 4
         Ok(Json::Bool(true))
       } else {
         Err("Expected 'true'")
       }
-    }
-    Some('f') => {
+    Some('f') =>
       if self.match_string("false") {
         self.pos = self.pos + 5
         Ok(Json::Bool(false))
       } else {
         Err("Expected 'false'")
       }
-    }
-    Some('n') => {
+    Some('n') =>
       if self.match_string("null") {
         self.pos = self.pos + 4
         Ok(Json::Null)
       } else {
         Err("Expected 'null'")
       }
-    }
-    Some(c) => {
+    Some(c) =>
       if c == '-' || (c >= '0' && c <= '9') {
         match self.parse_number() {
           Ok(n) => Ok(Json::Number(n))
@@ -203,7 +201,6 @@ fn Parser::parse_json_value(self : Parser) -> Result[Json, String] {
       } else {
         Err("Unexpected character: " + c.to_string())
       }
-    }
     None => Err("Unexpected EOF")
   }
 }
@@ -265,9 +262,7 @@ fn Parser::parse_object(self : Parser) -> Result[Json, String] {
             obj.set(key, val)
             self.skip_whitespace()
             match self.peek() {
-              Some(',') => {
-                self.advance()
-              }
+              Some(',') => self.advance()
               Some('}') => {
                 self.advance()
                 break
@@ -406,7 +401,6 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
     Some('.') => {
       let mut current = Query::Identity
       let mut first = true
-      
       while self.peek() == Some('.') {
         self.advance()
         let next = match self.peek() {
@@ -430,34 +424,36 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
               }
             }
           }
-          Some('"') => {
+          Some('"') =>
             match self.parse_string() {
               Ok(s) => Ok(Query::Field(s))
               Err(e) => Err(e)
             }
-          }
-          Some(c) => {
+          Some(c) =>
             if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' {
               let start = self.pos
               while self.pos < self.len {
                 let c = self.input[self.pos].unsafe_to_char()
-                if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' {
+                if (c >= 'a' && c <= 'z') ||
+                  (c >= 'A' && c <= 'Z') ||
+                  (c >= '0' && c <= '9') ||
+                  c == '_' {
                   self.advance()
                 } else {
                   break
                 }
               }
-              let field = self.input.view(start_offset=start, end_offset=self.pos).to_string()
+              let field = self.input
+                .view(start_offset=start, end_offset=self.pos)
+                .to_string()
               Ok(Query::Field(field))
             } else {
               Ok(Query::Identity)
             }
-          }
           None => Ok(Query::Identity)
         }
-        
         match next {
-          Ok(n) => {
+          Ok(n) =>
             if first {
               current = n
               first = false
@@ -467,7 +463,6 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
                 _ => current = Query::Pipe(current, n)
               }
             }
-          }
           Err(e) => return Err(e)
         }
       }
@@ -481,14 +476,13 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
         Ok(Query::ArrayConstructor(Query::Identity))
       } else {
         match self.parse_query_expr() {
-          Ok(q) => {
+          Ok(q) =>
             if self.peek() == Some(']') {
               self.advance()
               Ok(Query::ArrayConstructor(q))
             } else {
               Err("Expected ']'")
             }
-          }
           Err(e) => Err(e)
         }
       }
@@ -531,13 +525,12 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
       }
       Ok(Query::ObjectConstructor(fields))
     }
-    Some('"') => {
+    Some('"') =>
       match self.parse_string() {
         Ok(s) => Ok(Query::Literal(Json::String(s)))
         Err(e) => Err(e)
       }
-    }
-    Some(c) => {
+    Some(c) =>
       if c >= '0' && c <= '9' {
         match self.parse_number() {
           Ok(n) => Ok(Query::Literal(Json::Number(n)))
@@ -547,32 +540,53 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
         let start = self.pos
         while self.pos < self.len {
           let c = self.input[self.pos].unsafe_to_char()
-          if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' {
+          if (c >= 'a' && c <= 'z') ||
+            (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') ||
+            c == '_' {
             self.advance()
           } else {
             break
           }
         }
-        let ident = self.input.view(start_offset=start, end_offset=self.pos).to_string()
+        let ident = self.input
+          .view(start_offset=start, end_offset=self.pos)
+          .to_string()
         match ident {
           "length" => Ok(Query::Length)
           "keys" => Ok(Query::Keys)
           "true" => Ok(Query::Literal(Json::Bool(true)))
           "false" => Ok(Query::Literal(Json::Bool(false)))
           "null" => Ok(Query::Literal(Json::Null))
+          "exit" => {
+            // Check if followed by ()
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              self.skip_whitespace()
+              if self.peek() == Some(')') {
+                self.advance()
+                Ok(Query::Exit)
+              } else {
+                Err("Expected ')' after 'exit('")
+              }
+            } else {
+              // exit without parentheses is also valid
+              Ok(Query::Exit)
+            }
+          }
           "select" => {
             self.skip_whitespace()
             if self.peek() == Some('(') {
               self.advance()
               match self.parse_query_expr() {
-                Ok(q) => {
+                Ok(q) =>
                   if self.peek() == Some(')') {
                     self.advance()
                     Ok(Query::Select(q))
                   } else {
                     Err("Expected ')'")
                   }
-                }
                 Err(e) => Err(e)
               }
             } else {
@@ -584,7 +598,6 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
       } else {
         Err("Unexpected token in query: " + c.to_string())
       }
-    }
     _ => Err("Unexpected token in query")
   }
 }
@@ -596,23 +609,27 @@ fn Parser::parse_identifier_or_string(self : Parser) -> Result[String, String] {
   self.skip_whitespace()
   match self.peek() {
     Some('"') => self.parse_string()
-    Some(c) => {
+    Some(c) =>
       if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' {
         let start = self.pos
         while self.pos < self.len {
           let c = self.input[self.pos].unsafe_to_char()
-          if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' {
+          if (c >= 'a' && c <= 'z') ||
+            (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') ||
+            c == '_' {
             self.advance()
           } else {
             break
           }
         }
-        let s = self.input.view(start_offset=start, end_offset=self.pos).to_string()
+        let s = self.input
+          .view(start_offset=start, end_offset=self.pos)
+          .to_string()
         Ok(s)
       } else {
         Err("Expected identifier or string")
       }
-    }
     None => Err("Unexpected EOF")
   }
 }

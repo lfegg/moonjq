@@ -1,8 +1,9 @@
+///|
 test "iterator" {
   let json_str = "[1, 2, 3]"
   let query_str = ".[]"
   match parse_json(json_str) {
-    Ok(json) => {
+    Ok(json) =>
       match parse_query(query_str) {
         Ok(query) => {
           let res = eval(json, query)
@@ -10,16 +11,16 @@ test "iterator" {
         }
         Err(e) => fail("Query error: " + e)
       }
-    }
     Err(e) => fail("JSON error: " + e)
   }
 }
 
+///|
 test "select" {
   let json_str = "[1, 2, 3]"
   let query_str = ".[] | select(. > 1)"
   match parse_json(json_str) {
-    Ok(json) => {
+    Ok(json) =>
       match parse_query(query_str) {
         Ok(query) => {
           let res = eval(json, query)
@@ -27,16 +28,16 @@ test "select" {
         }
         Err(e) => fail("Query error: " + e)
       }
-    }
     Err(e) => fail("JSON error: " + e)
   }
 }
 
+///|
 test "object_iterator" {
   let json_str = "{\"a\": 1, \"b\": 2}"
   let query_str = ".[]"
   match parse_json(json_str) {
-    Ok(json) => {
+    Ok(json) =>
       match parse_query(query_str) {
         Ok(query) => {
           let _ = eval(json, query)
@@ -47,16 +48,16 @@ test "object_iterator" {
         }
         Err(e) => fail("Query error: " + e)
       }
-    }
     Err(e) => fail("JSON error: " + e)
   }
 }
 
+///|
 test "index_and_sequence" {
   let json_str = "[10, 20, 30]"
   let query_str = ".[0], .[2]"
   match parse_json(json_str) {
-    Ok(json) => {
+    Ok(json) =>
       match parse_query(query_str) {
         Ok(query) => {
           let res = eval(json, query)
@@ -64,7 +65,6 @@ test "index_and_sequence" {
         }
         Err(e) => fail("Query error: " + e)
       }
-    }
     Err(e) => fail("JSON error: " + e)
   }
 }

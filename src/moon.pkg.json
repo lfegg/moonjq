@@ -1,12 +1,22 @@
 {
   "is-main": true,
   "import": [
-    "moonbitlang/x/fs",
-    "moonbitlang/x/sys",
-
+    "moonbitlang/x/fs"
   ],
   "deps": {
     "moonbitlang/x/fs": "0.4.37",
     "moonbitlang/x/strconv": "0.4.37"
+  },
+  "pre-build": [
+    {
+      "input": "io.c",
+      "output": "io.o",
+      "command": "cc -c $input -o $output"
+    }
+  ],
+  "link": {
+    "native": {
+      "cc-link-flags": "src/io.o"
+    }
   }
 }

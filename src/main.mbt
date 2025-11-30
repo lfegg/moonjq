@@ -1,122 +1,108 @@
-///|
+///| Main entry point - starts REPL mode
 fn main {
-  // 获取命令行参数
-  let args = @sys.get_cli_args()
-
-  // 检查参数数量或是否请求帮助
-  if args.length() < 2 {
-    repl()
-    return
-  }
-  
-  if args[1] == "-h" || args[1] == "--help" {
-    print_usage()
-    return
-  }
-
-  let query_str = args[1]
-  // 获取 JSON 输入：可以是直接的 JSON 字符串，也可以是文件路径
-  let json_str = if args.length() >= 3 {
-    let arg = args[2]
-    try {
-      // 尝试作为文件读取
-      @fs.read_file_to_string(arg)
-    } catch {
-      // 如果读取失败（例如不是文件），则将其视为 JSON 字符串
-      _ => arg
-    }
-  } else {
-    "{}" // 默认为空对象
-  }
-  
-  // 解析查询字符串
-  match parse_query(query_str) {
-    Ok(query) => {
-      // 解析 JSON 输入
-      match parse_json(json_str) {
-        Ok(json) => {
-          // 执行查询
-          let results = eval(json, query)
-          // 打印结果
-          for res in results {
-            println(res.to_json_string())
-          }
-        }
-        Err(e) => {
-          println("Error parsing JSON input:")
-          println(e)
-          @sys.exit(1)
-        }
-      }
-    }
-    Err(e) => {
-      println("Error parsing query '" + query_str + "':")
-      println(e)
-      @sys.exit(1)
-    }
-  }
+  repl()
 }
 
 ///|
-/// 打印使用说明。
-fn print_usage() -> Unit {
-  let usage =
-    #|moonjq - A lightweight JSON processor written in MoonBit
-    #|
-    #|Usage: moonjq <query> [json_string | file_path]
-    #|
-    #|Arguments:
-    #|  <query>       The jq-like filter to apply to the JSON input.
-    #|  [json_string] The JSON string or file path to process. If omitted, defaults to '{}'.
-    #|
-    #|Options:
-    #|  -h, --help    Show this help message and exit.
-    #|
-    #|Examples:
-    #|  moonjq "." '{"a": 1}'
-    #|  moonjq ".a" '{"a": 1}'
-    #|  moonjq ".[]" '[1, 2, 3]'
-    #|  moonjq ".[] | select(. > 1)" '[1, 2, 3]'
-    #|
-  println(usage)
-}
-
 fn repl() -> Unit {
-  println("moonjq - A lightweight JSON processor written in MoonBit")
-  println("Hint: Enter jq filters (e.g. '.', '.key', '.[0]') to query '{}'.")
-  println("Type 'exit()' to quit.")
+  println("moonjq - Interactive JSON processor (jq-compatible)")
+  println("Type jq filters or shell commands (e.g., 'echo {...} | jq .')")
+  println("Ctrl+C or Ctrl+D to exit.")
+  println("")
+  
+  // Default JSON (will be used if user doesn't provide one in command)
+  let json = Json::Null
+  
   while true {
-    println("moonjq> ")
+    println("jq> ")
     match read_line() {
       Some(input) => {
-        let input = input.trim(chars=" \t\r\n")
-        if input == "exit()" {
-          break
-        }
+        let input = input.trim(chars=" \t\r\n").to_string()
+        
+        // Skip empty lines
         if input == "" {
           continue
         }
-        match parse_query(input.to_string()) {
-          Ok(query) => {
-            // Use empty object as default input
-            let json = Json::Object(Map::new())
-            let results = eval(json, query)
-            for res in results {
-              println(res.to_json_string())
+        
+        // Check if it's a shell-style command (contains pipe)
+        match parse_command_line(input) {
+          Ok((json_source, query_str)) => {
+            // Get JSON data from source (string or file)
+            let json_str = match json_source {
+              JsonSource::JsonString(s) => s
+              JsonSource::JsonFile(filename) => {
+                let content = @fs.read_file_to_string(filename) catch {
+                  e => {
+                    println("Error reading file '" + filename + "': " + e.to_string())
+                    "" // Return empty string as fallback
+                  }
+                }
+                if content == "" {
+                  continue  // Skip this iteration if file read failed
+                }
+                content
+              }
+            }
+            
+            // Parse JSON from command or file
+            match parse_json(json_str) {
+              Ok(cmd_json) => {
+                // Parse and execute query
+                match parse_query(query_str) {
+                  Ok(query) => {
+                    let results = eval(cmd_json, query)
+                    // Check for exit signal
+                    if results.length() == 1 {
+                      match results[0] {
+                        Json::String(s) =>
+                          if s == "__EXIT__" {
+                            println("Goodbye!")
+                            return
+                          }
+                        _ => ()
+                      }
+                    }
+                    for res in results {
+                      println(res.to_json_string())
+                    }
+                  }
+                  Err(e) => println("jq: error: " + e)
+                }
+              }
+              Err(e) => println("Error parsing JSON: " + e)
             }
           }
-          Err(e) => {
-            println("Error: " + e)
+          Err(_) => {
+            // Not a pipe command, treat as normal jq query
+            match parse_query(input) {
+              Ok(query) => {
+                let results = eval(json, query)
+                // Check for exit signal
+                if results.length() == 1 {
+                  match results[0] {
+                    Json::String(s) =>
+                      if s == "__EXIT__" {
+                        println("Goodbye!")
+                        return
+                      }
+                    _ => ()
+                  }
+                }
+                for res in results {
+                  println(res.to_json_string())
+                }
+              }
+              Err(e) => println("jq: error: " + e)
+            }
           }
         }
       }
-      None => break
+      None => break  // EOF (Ctrl+D)
     }
   }
 }
 
+///|
 fn read_line() -> String? {
-  // TODO: Implement read_line for the specific runtime.
-  // Currently returning None to prevent infinite loops if not implemented.
-  None
+  read_line_from_stdin()
 }

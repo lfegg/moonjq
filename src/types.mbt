@@ -12,10 +12,10 @@ pub enum Json {
 ///|
 /// 比较操作符枚举。
 pub enum Op {
-  Eq  // ==
+  Eq // ==
   Neq // !=
-  Gt  // >
-  Lt  // <
+  Gt // >
+  Lt // <
   Gte // >=
   Lte // <=
 } derive(Show, Eq)
@@ -36,4 +36,5 @@ pub enum Query {
   Select(Query) // 选择/过滤 'select(q)'
   Length // 获取长度 'length'
   Keys // 获取键名 'keys'
+  Exit // 退出 REPL 'exit' 或 'exit()'
 } derive(Show, Eq)
