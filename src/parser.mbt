@@ -323,48 +323,129 @@ fn Parser::parse_sequence(self : Parser) -> Result[Query, String] {
 ///|
 /// 解析比较操作符 (==, !=, >, <, >=, <=)。
 fn Parser::parse_compare(self : Parser) -> Result[Query, String] {
-  match self.parse_pipe() {
+  match self.parse_add_sub() {
     Ok(left) => {
       self.skip_whitespace()
       if self.match_string("==") {
         self.pos = self.pos + 2
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Eq, left, right))
           Err(e) => Err(e)
         }
       } else if self.match_string("!=") {
         self.pos = self.pos + 2
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Neq, left, right))
           Err(e) => Err(e)
         }
       } else if self.match_string(">=") {
         self.pos = self.pos + 2
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Gte, left, right))
           Err(e) => Err(e)
         }
       } else if self.match_string("<=") {
         self.pos = self.pos + 2
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Lte, left, right))
           Err(e) => Err(e)
         }
       } else if self.peek() == Some('>') {
         self.advance()
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Gt, left, right))
           Err(e) => Err(e)
         }
       } else if self.peek() == Some('<') {
         self.advance()
-        match self.parse_pipe() {
+        match self.parse_add_sub() {
           Ok(right) => Ok(Query::Binary(Op::Lt, left, right))
           Err(e) => Err(e)
         }
       } else {
         Ok(left)
       }
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+/// 解析加减操作符 (+, -)。
+fn Parser::parse_add_sub(self : Parser) -> Result[Query, String] {
+  match self.parse_mul_div_mod() {
+    Ok(left) => {
+      let mut current = left
+      self.skip_whitespace()
+      while true {
+        if self.peek() == Some('+') {
+          self.advance()
+          match self.parse_mul_div_mod() {
+            Ok(right) => {
+              current = Query::Binary(Op::Add, current, right)
+              self.skip_whitespace()
+            }
+            Err(e) => return Err(e)
+          }
+        } else if self.peek() == Some('-') {
+          self.advance()
+          match self.parse_mul_div_mod() {
+            Ok(right) => {
+              current = Query::Binary(Op::Sub, current, right)
+              self.skip_whitespace()
+            }
+            Err(e) => return Err(e)
+          }
+        } else {
+          break
+        }
+      }
+      Ok(current)
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+/// 解析乘除模操作符 (*, /, %)。
+fn Parser::parse_mul_div_mod(self : Parser) -> Result[Query, String] {
+  match self.parse_pipe() {
+    Ok(left) => {
+      let mut current = left
+      self.skip_whitespace()
+      while true {
+        if self.peek() == Some('*') {
+          self.advance()
+          match self.parse_pipe() {
+            Ok(right) => {
+              current = Query::Binary(Op::Mul, current, right)
+              self.skip_whitespace()
+            }
+            Err(e) => return Err(e)
+          }
+        } else if self.peek() == Some('/') {
+          self.advance()
+          match self.parse_pipe() {
+            Ok(right) => {
+              current = Query::Binary(Op::Div, current, right)
+              self.skip_whitespace()
+            }
+            Err(e) => return Err(e)
+          }
+        } else if self.peek() == Some('%') {
+          self.advance()
+          match self.parse_pipe() {
+            Ok(right) => {
+              current = Query::Binary(Op::Mod, current, right)
+              self.skip_whitespace()
+            }
+            Err(e) => return Err(e)
+          }
+        } else {
+          break
+        }
+      }
+      Ok(current)
     }
     Err(e) => Err(e)
   }
@@ -398,7 +479,33 @@ fn Parser::parse_pipe(self : Parser) -> Result[Query, String] {
 fn Parser::parse_term(self : Parser) -> Result[Query, String] {
   self.skip_whitespace()
   match self.peek() {
+    Some('(') => {
+      // 括号表达式
+      self.advance()
+      match self.parse_query_expr() {
+        Ok(q) => {
+          self.skip_whitespace()
+          if self.peek() == Some(')') {
+            self.advance()
+            Ok(q)
+          } else {
+            Err("Expected ')'")
+          }
+        }
+        Err(e) => Err(e)
+      }
+    }
     Some('.') => {
+      // Check for recursive descent ..
+      if self.pos + 1 < self.len &&
+        self.input[self.pos + 1].unsafe_to_char() == '.' {
+        self.advance()
+        self.advance()
+        // After .., we expect either nothing (meaning all values) or a query
+        self.skip_whitespace()
+        // Recursive descent without filter: .. is equivalent to .. | .
+        return Ok(Query::RecursiveDescent(Query::Identity))
+      }
       let mut current = Query::Identity
       let mut first = true
       while self.peek() == Some('.') {
@@ -410,17 +517,52 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
               self.advance()
               Ok(Query::Iterator)
             } else {
-              match self.parse_number() {
-                Ok(n) => {
-                  self.skip_whitespace()
-                  if self.peek() == Some(']') {
-                    self.advance()
-                    Ok(Query::Index(n.to_int()))
-                  } else {
-                    Err("Expected ']'")
+              // Try to parse slice [start:end] or index [n]
+              self.skip_whitespace()
+              let mut start : Int? = None
+              let mut end : Int? = None
+
+              // Check if starts with colon (means [:end])
+              if self.peek() != Some(':') {
+                match self.parse_number() {
+                  Ok(n) => {
+                    start = Some(n.to_int())
+                    self.skip_whitespace()
+                  }
+                  Err(_) => return Err("Expected number or ':'")
+                }
+              }
+
+              // Check for colon (slice operator)
+              if self.peek() == Some(':') {
+                self.advance()
+                self.skip_whitespace()
+                // Check if there's an end value
+                if self.peek() != Some(']') {
+                  match self.parse_number() {
+                    Ok(n) => {
+                      end = Some(n.to_int())
+                      self.skip_whitespace()
+                    }
+                    Err(_) => return Err("Expected number or ']'")
                   }
                 }
-                Err(_) => Err("Expected ']' or number")
+                // It's a slice
+                if self.peek() == Some(']') {
+                  self.advance()
+                  Ok(Query::Slice(start, end))
+                } else {
+                  Err("Expected ']'")
+                }
+                // It's a single index
+              } else if self.peek() == Some(']') {
+                self.advance()
+                match start {
+                  Some(idx) => Ok(Query::Index(idx))
+                  None => Err("Expected index")
+                }
+              } else {
+                Err("Expected ']' or ':'")
               }
             }
           }
@@ -465,6 +607,71 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
             }
           Err(e) => return Err(e)
         }
+      }
+
+      // After parsing .field, check for [index/slice] without a dot
+      // This allows .field[0] or .field[1:3] syntax
+      while self.peek() == Some('[') {
+        self.advance()
+        if self.peek() == Some(']') {
+          self.advance()
+          current = Query::Pipe(current, Query::Iterator)
+        } else {
+          // Try to parse slice [start:end] or index [n]
+          self.skip_whitespace()
+          let mut start : Int? = None
+          let mut end : Int? = None
+
+          // Check if starts with colon (means [:end])
+          if self.peek() != Some(':') {
+            match self.parse_number() {
+              Ok(n) => {
+                start = Some(n.to_int())
+                self.skip_whitespace()
+              }
+              Err(_) => return Err("Expected number or ':'")
+            }
+          }
+
+          // Check for colon (slice operator)
+          if self.peek() == Some(':') {
+            self.advance()
+            self.skip_whitespace()
+            // Check if there's an end value
+            if self.peek() != Some(']') {
+              match self.parse_number() {
+                Ok(n) => {
+                  end = Some(n.to_int())
+                  self.skip_whitespace()
+                }
+                Err(_) => return Err("Expected number or ']'")
+              }
+            }
+            // It's a slice
+            if self.peek() == Some(']') {
+              self.advance()
+              current = Query::Pipe(current, Query::Slice(start, end))
+            } else {
+              return Err("Expected ']'")
+            }
+            // It's a single index
+          } else if self.peek() == Some(']') {
+            self.advance()
+            match start {
+              Some(idx) => current = Query::Pipe(current, Query::Index(idx))
+              None => return Err("Expected index")
+            }
+          } else {
+            return Err("Expected ']' or ':'")
+          }
+        }
+      }
+
+      // Check for optional operator ?
+      self.skip_whitespace()
+      if self.peek() == Some('?') {
+        self.advance()
+        current = Query::Optional(current)
       }
       Ok(current)
     }
@@ -531,7 +738,13 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
         Err(e) => Err(e)
       }
     Some(c) =>
-      if c >= '0' && c <= '9' {
+      if c == '-' {
+        // 负数字面量
+        match self.parse_number() {
+          Ok(n) => Ok(Query::Literal(Json::Number(n)))
+          Err(e) => Err(e)
+        }
+      } else if c >= '0' && c <= '9' {
         match self.parse_number() {
           Ok(n) => Ok(Query::Literal(Json::Number(n)))
           Err(e) => Err(e)
@@ -555,6 +768,7 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
         match ident {
           "length" => Ok(Query::Length)
           "keys" => Ok(Query::Keys)
+          "type" => Ok(Query::Type)
           "true" => Ok(Query::Literal(Json::Bool(true)))
           "false" => Ok(Query::Literal(Json::Bool(false)))
           "null" => Ok(Query::Literal(Json::Null))

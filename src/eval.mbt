@@ -35,6 +35,103 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         _ => [Json::Null] // 非数组类型索引返回 null
       }
 
+    // 切片 '[start:end]'
+    Slice(start, end) =>
+      match json {
+        Array(arr) => {
+          let len = arr.length()
+          // 处理负数索引和默认值
+          let s = match start {
+            Some(idx) => if idx < 0 { len + idx } else { idx }
+            None => 0
+          }
+          let e = match end {
+            Some(idx) => if idx < 0 { len + idx } else { idx }
+            None => len
+          }
+          // 确保索引在合法范围内
+          let start_idx = if s < 0 { 0 } else if s > len { len } else { s }
+          let end_idx = if e < 0 { 0 } else if e > len { len } else { e }
+          let result = []
+          for i = start_idx; i < end_idx; i = i + 1 {
+            result.push(arr[i])
+          }
+          [Json::Array(result)]
+        }
+        String(s) => {
+          let len = s.length()
+          // 处理负数索引和默认值
+          let start_idx = match start {
+            Some(idx) => {
+              let i = if idx < 0 { len + idx } else { idx }
+              if i < 0 {
+                0
+              } else if i > len {
+                len
+              } else {
+                i
+              }
+            }
+            None => 0
+          }
+          let end_idx = match end {
+            Some(idx) => {
+              let i = if idx < 0 { len + idx } else { idx }
+              if i < 0 {
+                0
+              } else if i > len {
+                len
+              } else {
+                i
+              }
+            }
+            None => len
+          }
+          let substr = s
+            .view(start_offset=start_idx, end_offset=end_idx)
+            .to_string()
+          [Json::String(substr)]
+        }
+        _ => [Json::Null] // 非数组/字符串类型返回 null
+      }
+
+    // 递归下降 '..'
+    RecursiveDescent(query) => {
+      fn recurse(j : Json, q : Query) -> Array[Json] {
+        let results = eval(j, q)
+        match j {
+          Array(arr) =>
+            for elem in arr {
+              results.append(recurse(elem, q))
+            }
+          Object(obj) =>
+            for v in obj.values() {
+              results.append(recurse(v, q))
+            }
+          _ => ()
+        }
+        results
+      }
+
+      recurse(json, query)
+    }
+
+    // 可选操作符 'query?'
+    Optional(q) => {
+      // 可选操作符会捕获错误，如果查询失败则返回空数组而不是报错
+      // 在当前实现中，我们的 eval 不会抛出异常，而是返回 Null
+      // 所以可选操作符主要是过滤掉 Null 结果
+      let results = eval(json, q)
+      let filtered = []
+      for r in results {
+        match r {
+          Null => () // 过滤掉 null
+          _ => filtered.push(r)
+        }
+      }
+      filtered
+    }
+
     // 迭代器 '.[]'
     Iterator =>
       match json {
@@ -52,15 +149,15 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
     // 字面量，如 1, "string", true
     Literal(v) => [v]
 
-    // 二元操作，如 ==, !=, >, <
+    // 二元操作，如 ==, !=, >, <, +, -, *, /, %
     Binary(op, left, right) => {
       let l_res = eval(json, left)
       let r_res = eval(json, right)
       let res = []
-      // 笛卡尔积：左侧每个结果与右侧每个结果进行比较
+      // 笛卡尔积：左侧每个结果与右侧每个结果进行运算
       for l in l_res {
         for r in r_res {
-          res.push(Json::Bool(compare(op, l, r)))
+          res.push(apply_binary_op(op, l, r))
         }
       }
       res
@@ -86,6 +183,17 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         Null => [Json::Number(0.0)]
         Number(n) => [Json::Number(n)]
         _ => [Json::Null] // 其他类型返回 null (jq 会报错，这里简化处理)
+      }
+
+    // 获取类型 'type'
+    Type =>
+      match json {
+        Null => [Json::String("null")]
+        Bool(_) => [Json::String("boolean")]
+        Number(_) => [Json::String("number")]
+        String(_) => [Json::String("string")]
+        Array(_) => [Json::String("array")]
+        Object(_) => [Json::String("object")]
       }
 
     // 获取键名 'keys'
@@ -123,11 +231,10 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
       }
 
     // 退出 REPL 'exit' 或 'exit()'
-    Exit => {
+    Exit =>
       // Return a special marker that REPL will recognize
       // We'll use a string "__EXIT__" as a signal
       [Json::String("__EXIT__")]
-    }
 
     // 管道 '|'
     Pipe(left, right) => {
@@ -196,15 +303,105 @@ fn is_truthy(j : Json) -> Bool {
 }
 
 ///|
-/// 执行比较操作。
-fn compare(op : Op, l : Json, r : Json) -> Bool {
+/// 执行二元操作（比较或算术）。
+fn apply_binary_op(op : Op, l : Json, r : Json) -> Json {
   match op {
-    Eq => l == r
-    Neq => l != r
-    Gt => compare_values(l, r) > 0
-    Lt => compare_values(l, r) < 0
-    Gte => compare_values(l, r) >= 0
-    Lte => compare_values(l, r) <= 0
+    // 比较操作，返回布尔值
+    Eq => Json::Bool(l == r)
+    Neq => Json::Bool(l != r)
+    Gt => Json::Bool(compare_values(l, r) > 0)
+    Lt => Json::Bool(compare_values(l, r) < 0)
+    Gte => Json::Bool(compare_values(l, r) >= 0)
+    Lte => Json::Bool(compare_values(l, r) <= 0)
+    // 算术操作，返回数字或 null
+    Add =>
+      match (l, r) {
+        (Number(a), Number(b)) => Json::Number(a + b)
+        (String(a), String(b)) => Json::String(a + b) // 字符串连接
+        (Array(a), Array(b)) => {
+          let result = []
+          result.append(a)
+          result.append(b)
+          Json::Array(result) // 数组连接
+        }
+        (Object(a), Object(b)) => {
+          let result = Map::new()
+          a.each(fn(k, v) { result.set(k, v) })
+          b.each(fn(k, v) { result.set(k, v) }) // 对象合并
+          Json::Object(result)
+        }
+        _ => Json::Null // 类型不匹配返回 null
+      }
+    Sub =>
+      match (l, r) {
+        (Number(a), Number(b)) => Json::Number(a - b)
+        (Array(a), Array(b)) => {
+          // 数组差集：从 a 中移除 b 中的元素
+          let result = []
+          for item in a {
+            let mut found = false
+            for remove in b {
+              if item == remove {
+                found = true
+                break
+              }
+            }
+            if not(found) {
+              result.push(item)
+            }
+          }
+          Json::Array(result)
+        }
+        _ => Json::Null
+      }
+    Mul =>
+      match (l, r) {
+        (Number(a), Number(b)) => Json::Number(a * b)
+        (String(s), Number(n)) | (Number(n), String(s)) =>
+          // 字符串重复
+          if n <= 0.0 {
+            Json::String("")
+          } else {
+            let count = n.to_int()
+            let buf = StringBuilder::new()
+            for i = 0; i < count; i = i + 1 {
+              buf.write_string(s)
+            }
+            Json::String(buf.to_string())
+          }
+        (Object(obj), Object(other)) => {
+          // 对象递归合并
+          let result = Map::new()
+          obj.each(fn(k, v) { result.set(k, v) })
+          other.each(fn(k, v) { result.set(k, v) })
+          Json::Object(result)
+        }
+        _ => Json::Null
+      }
+    Div =>
+      match (l, r) {
+        (Number(a), Number(b)) =>
+          if b == 0.0 {
+            Json::Null // 除以零返回 null
+          } else {
+            Json::Number(a / b)
+          }
+        (String(s), String(_sep)) =>
+          // 字符串分割（简化实现）
+          // 这里简化处理，实际 jq 的字符串分割更复杂
+          Json::Array([Json::String(s)]) // 简化：返回原字符串数组
+        _ => Json::Null
+      }
+    Mod =>
+      match (l, r) {
+        (Number(a), Number(b)) =>
+          if b == 0.0 {
+            Json::Null
+          } else {
+            Json::Number(a % b)
+          }
+        _ => Json::Null
+      }
   }
 }
 

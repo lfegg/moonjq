@@ -6,6 +6,8 @@ fn eval(Json, Query) -> Array[Json]
 
 fn has_stdin_data() -> Bool
 
+fn parse_command_line(String) -> Result[(JsonSource, String), String]
+
 fn parse_json(String) -> Result[Json, String]
 
 fn parse_query(String) -> Result[Query, String]
@@ -29,6 +31,11 @@ fn Json::to_json_string(Self) -> String
 impl Eq for Json
 impl Show for Json
 
+pub enum JsonSource {
+  JsonString(String)
+  JsonFile(String)
+}
+
 pub enum Op {
   Eq
   Neq
@@ -36,6 +43,11 @@ pub enum Op {
   Lt
   Gte
   Lte
+  Add
+  Sub
+  Mul
+  Div
+  Mod
 }
 impl Eq for Op
 impl Show for Op
@@ -46,7 +58,10 @@ pub enum Query {
   Identity
   Field(String)
   Index(Int)
+  Slice(Int?, Int?)
   Iterator
+  RecursiveDescent(Query)
+  Optional(Query)
   Pipe(Query, Query)
   Sequence(Query, Query)
   ArrayConstructor(Query)
@@ -56,6 +71,8 @@ pub enum Query {
   Select(Query)
   Length
   Keys
+  Type
+  Exit
 }
 impl Eq for Query
 impl Show for Query

@@ -1,4 +1,5 @@
-///| Main entry point - starts REPL mode
+///|
+/// Main entry point - starts REPL mode
 fn main {
   repl()
 }
@@ -9,21 +10,20 @@ fn repl() -> Unit {
   println("Type jq filters or shell commands (e.g., 'echo {...} | jq .')")
   println("Ctrl+C or Ctrl+D to exit.")
   println("")
-  
+
   // Default JSON (will be used if user doesn't provide one in command)
   let json = Json::Null
-  
   while true {
     println("jq> ")
     match read_line() {
       Some(input) => {
         let input = input.trim(chars=" \t\r\n").to_string()
-        
+
         // Skip empty lines
         if input == "" {
           continue
         }
-        
+
         // Check if it's a shell-style command (contains pipe)
         match parse_command_line(input) {
           Ok((json_source, query_str)) => {
@@ -33,20 +33,22 @@ fn repl() -> Unit {
               JsonSource::JsonFile(filename) => {
                 let content = @fs.read_file_to_string(filename) catch {
                   e => {
-                    println("Error reading file '" + filename + "': " + e.to_string())
+                    println(
+                      "Error reading file '" + filename + "': " + e.to_string(),
+                    )
                     "" // Return empty string as fallback
                   }
                 }
                 if content == "" {
-                  continue  // Skip this iteration if file read failed
+                  continue // Skip this iteration if file read failed
                 }
                 content
               }
             }
-            
+
             // Parse JSON from command or file
             match parse_json(json_str) {
-              Ok(cmd_json) => {
+              Ok(cmd_json) =>
                 // Parse and execute query
                 match parse_query(query_str) {
                   Ok(query) => {
@@ -68,11 +70,10 @@ fn repl() -> Unit {
                   }
                   Err(e) => println("jq: error: " + e)
                 }
-              }
               Err(e) => println("Error parsing JSON: " + e)
             }
           }
-          Err(_) => {
+          Err(_) =>
             // Not a pipe command, treat as normal jq query
             match parse_query(input) {
               Ok(query) => {
@@ -94,10 +95,9 @@ fn repl() -> Unit {
               }
               Err(e) => println("jq: error: " + e)
             }
-          }
         }
       }
-      None => break  // EOF (Ctrl+D)
+      None => break // EOF (Ctrl+D)
     }
   }
 }
