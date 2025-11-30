@@ -98,6 +98,12 @@ pub enum Query {
   Alternative(Query, Query)
   ToString
   ToNumber
+  Split(Query)
+  Join(Query)
+  StartsWith(Query)
+  EndsWith(Query)
+  LTrimStr(Query)
+  RTrimStr(Query)
   Exit
 }
 impl Eq for Query

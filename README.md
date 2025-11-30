@@ -603,6 +603,62 @@ jq> echo '[1,2,3,4,5]' | jq 'keys | .[]'
 4
 ```
 
+#### 字符串操作
+
+```bash
+# split(sep) - 使用分隔符分割字符串
+jq> echo '"a,b,c,d"' | jq 'split(",")'
+["a", "b", "c", "d"]
+
+jq> echo '"hello world"' | jq 'split(" ")'
+["hello", "world"]
+
+# join(sep) - 使用分隔符连接数组元素
+jq> echo '["a","b","c"]' | jq 'join(",")'
+"a,b,c"
+
+jq> echo '["hello","world"]' | jq 'join(" ")'
+"hello world"
+
+jq> echo '[1,2,3]' | jq 'join("-")'
+"1-2-3"
+
+# startswith(str) - 检查是否以指定字符串开头
+jq> echo '"hello world"' | jq 'startswith("hello")'
+true
+
+jq> echo '"hello world"' | jq 'startswith("world")'
+false
+
+# endswith(str) - 检查是否以指定字符串结尾
+jq> echo '"hello world"' | jq 'endswith("world")'
+true
+
+jq> echo '"hello world"' | jq 'endswith("hello")'
+false
+
+# ltrimstr(str) - 移除字符串开头的指定前缀
+jq> echo '"hello world"' | jq 'ltrimstr("hello ")'
+"world"
+
+jq> echo '"hello world"' | jq 'ltrimstr("hi")'
+"hello world"
+
+# rtrimstr(str) - 移除字符串结尾的指定后缀
+jq> echo '"hello world"' | jq 'rtrimstr(" world")'
+"hello"
+
+jq> echo '"hello world"' | jq 'rtrimstr("bye")'
+"hello world"
+
+# 组合使用
+jq> echo '"path/to/file.txt"' | jq 'split("/") | .[-1]'
+"file.txt"
+
+jq> echo '["prefix_","value","_suffix"]' | jq 'join("") | ltrimstr("prefix_") | rtrimstr("_suffix")'
+"value"
+```
+
 #### 从文件读取
 
 ```bash

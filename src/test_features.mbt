@@ -669,6 +669,179 @@ test "alternative: field access" {
 }
 
 ///|
+test "split: basic" {
+  let json_str = "\"a,b,c\""
+  let query_str = "split(\",\")"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(
+            res,
+            content="[Array([String(\"a\"), String(\"b\"), String(\"c\")])]",
+          )
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "join: basic" {
+  let json_str = "[\"a\",\"b\",\"c\"]"
+  let query_str = "join(\",\")"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"a,b,c\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "startswith: true" {
+  let json_str = "\"hello world\""
+  let query_str = "startswith(\"hello\")"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(true)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "startswith: false" {
+  let json_str = "\"hello world\""
+  let query_str = "startswith(\"world\")"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(false)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "endswith: true" {
+  let json_str = "\"hello world\""
+  let query_str = "endswith(\"world\")"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(true)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "endswith: false" {
+  let json_str = "\"hello world\""
+  let query_str = "endswith(\"hello\")"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(false)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "ltrimstr: match" {
+  let json_str = "\"hello world\""
+  let query_str = "ltrimstr(\"hello\")"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\" world\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "ltrimstr: no match" {
+  let json_str = "\"hello world\""
+  let query_str = "ltrimstr(\"world\")"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"hello world\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "rtrimstr: match" {
+  let json_str = "\"hello world\""
+  let query_str = "rtrimstr(\"world\")"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"hello \")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "rtrimstr: no match" {
+  let json_str = "\"hello world\""
+  let query_str = "rtrimstr(\"hello\")"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"hello world\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
 test "length: string" {
   let json_str = "\"hello\""
   let query_str = "length"

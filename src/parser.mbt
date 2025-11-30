@@ -920,6 +920,26 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
             self.parse_function_with_arg("contains", fn(q) {
               Query::Contains(q)
             })
+          "split" =>
+            self.parse_function_with_arg("split", fn(q) { Query::Split(q) })
+          "join" =>
+            self.parse_function_with_arg("join", fn(q) { Query::Join(q) })
+          "startswith" =>
+            self.parse_function_with_arg("startswith", fn(q) {
+              Query::StartsWith(q)
+            })
+          "endswith" =>
+            self.parse_function_with_arg("endswith", fn(q) {
+              Query::EndsWith(q)
+            })
+          "ltrimstr" =>
+            self.parse_function_with_arg("ltrimstr", fn(q) {
+              Query::LTrimStr(q)
+            })
+          "rtrimstr" =>
+            self.parse_function_with_arg("rtrimstr", fn(q) {
+              Query::RTrimStr(q)
+            })
           "first" => {
             self.skip_whitespace()
             if self.peek() == Some('(') {

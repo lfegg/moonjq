@@ -73,5 +73,11 @@ pub enum Query {
   Alternative(Query, Query) // 空值合并 'expr1 // expr2'
   ToString // 转换为字符串 'tostring'
   ToNumber // 转换为数字 'tonumber'
+  Split(Query) // 分割字符串 'split(sep)'
+  Join(Query) // 连接数组 'join(sep)'
+  StartsWith(Query) // 检查前缀 'startswith(str)'
+  EndsWith(Query) // 检查后缀 'endswith(str)'
+  LTrimStr(Query) // 删除左侧字符串 'ltrimstr(str)'
+  RTrimStr(Query) // 删除右侧字符串 'rtrimstr(str)'
   Exit // 退出 REPL 'exit' 或 'exit()'
 } derive(Show, Eq)

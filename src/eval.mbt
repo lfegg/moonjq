@@ -868,6 +868,153 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         _ => [Json::Null]
       }
 
+    // 分割字符串 'split(sep)'
+    Split(sep_query) =>
+      match json {
+        String(s) => {
+          let sep_results = eval(json, sep_query)
+          if sep_results.length() > 0 {
+            match sep_results[0] {
+              String(sep) => {
+                let parts = s.split(sep)
+                let result = []
+                for part in parts {
+                  result.push(Json::String(part.to_string()))
+                }
+                [Json::Array(result)]
+              }
+              _ => [Json::Null]
+            }
+          } else {
+            [Json::Null]
+          }
+        }
+        _ => [Json::Null]
+      }
+
+    // 连接数组 'join(sep)'
+    Join(sep_query) =>
+      match json {
+        Array(arr) => {
+          let sep_results = eval(json, sep_query)
+          if sep_results.length() > 0 {
+            match sep_results[0] {
+              String(sep) => {
+                let parts = []
+                for item in arr {
+                  match item {
+                    String(s) => parts.push(s)
+                    Number(n) => parts.push(n.to_string())
+                    Bool(b) => parts.push(if b { "true" } else { "false" })
+                    Null => parts.push("null")
+                    _ => parts.push(item.to_json_string())
+                  }
+                }
+                let mut result = ""
+                for i = 0; i < parts.length(); i = i + 1 {
+                  if i > 0 {
+                    result = result + sep
+                  }
+                  result = result + parts[i]
+                }
+                [Json::String(result)]
+              }
+              _ => [Json::Null]
+            }
+          } else {
+            [Json::Null]
+          }
+        }
+        _ => [Json::Null]
+      }
+
+    // 检查前缀 'startswith(str)'
+    StartsWith(prefix_query) =>
+      match json {
+        String(s) => {
+          let prefix_results = eval(json, prefix_query)
+          if prefix_results.length() > 0 {
+            match prefix_results[0] {
+              String(prefix) => [Json::Bool(s.has_prefix(prefix))]
+              _ => [Json::Bool(false)]
+            }
+          } else {
+            [Json::Bool(false)]
+          }
+        }
+        _ => [Json::Null]
+      }
+
+    // 检查后缀 'endswith(str)'
+    EndsWith(suffix_query) =>
+      match json {
+        String(s) => {
+          let suffix_results = eval(json, suffix_query)
+          if suffix_results.length() > 0 {
+            match suffix_results[0] {
+              String(suffix) => [Json::Bool(s.has_suffix(suffix))]
+              _ => [Json::Bool(false)]
+            }
+          } else {
+            [Json::Bool(false)]
+          }
+        }
+        _ => [Json::Null]
+      }
+
+    // 删除左侧字符串 'ltrimstr(str)'
+    LTrimStr(prefix_query) =>
+      match json {
+        String(s) => {
+          let prefix_results = eval(json, prefix_query)
+          if prefix_results.length() > 0 {
+            match prefix_results[0] {
+              String(prefix) =>
+                if s.has_prefix(prefix) {
+                  let new_s = s
+                    .view(start_offset=prefix.length(), end_offset=s.length())
+                    .to_string()
+                  [Json::String(new_s)]
+                } else {
+                  [json]
+                }
+              _ => [json]
+            }
+          } else {
+            [json]
+          }
+        }
+        _ => [Json::Null]
+      }
+
+    // 删除右侧字符串 'rtrimstr(str)'
+    RTrimStr(suffix_query) =>
+      match json {
+        String(s) => {
+          let suffix_results = eval(json, suffix_query)
+          if suffix_results.length() > 0 {
+            match suffix_results[0] {
+              String(suffix) =>
+                if s.has_suffix(suffix) {
+                  let new_s = s
+                    .view(
+                      start_offset=0,
+                      end_offset=s.length() - suffix.length(),
+                    )
+                    .to_string()
+                  [Json::String(new_s)]
+                } else {
+                  [json]
+                }
+              _ => [json]
+            }
+          } else {
+            [json]
+          }
+        }
+        _ => [Json::Null]
+      }
+
     // 退出 REPL 'exit' 或 'exit()'
     Exit =>
       // Return a special marker that REPL will recognize
