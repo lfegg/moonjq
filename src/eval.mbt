@@ -65,7 +65,9 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
           // 确保 start <= end
           let end = if end < start { start } else { end }
           // 提取子数组
-          let result = []
+          // 使用 Array::new 预分配容量，减少扩容开销
+          let size = end - start
+          let result = Array::new(capacity=size)
           for i = start; i < end; i = i + 1 {
             result.push(arr[i])
           }
@@ -109,7 +111,9 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
       match json {
         Array(arr) => arr // 数组展开为元素序列
         Object(obj) => {
-          let res = []
+          // 预分配对象大小的容量
+          let obj_size = obj.length()
+          let res = Array::new(capacity=obj_size)
           for v in obj.values() {
             res.push(v)
           }
@@ -136,7 +140,8 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         }
       }
 
-      let results = []
+      // 预估容量（假设平均有10个嵌套值）
+      let results = Array::new(capacity=10)
       recurse_helper(json, results)
       results
     }
@@ -185,7 +190,9 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
                   res.push(Json::String(a + b))
                 // 数组连接
                 (Array(a), Array(b)) if op == Add => {
-                  let result = []
+                  // 预分配总容量
+                  let total_len = a.length() + b.length()
+                  let result = Array::new(capacity=total_len)
                   for item in a {
                     result.push(item)
                   }
@@ -235,13 +242,16 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
     Keys =>
       match json {
         Object(obj) => {
-          let keys = []
+          let obj_size = obj.length()
+          // 预分配容量
+          let keys = Array::new(capacity=obj_size)
           for k in obj.keys() {
             keys.push(k)
           }
           // 简单的冒泡排序，确保键名有序
-          for i = 0; i < keys.length(); i = i + 1 {
-            for j = 0; j < keys.length() - 1 - i; j = j + 1 {
+          let len = keys.length()
+          for i = 0; i < len; i = i + 1 {
+            for j = 0; j < len - 1 - i; j = j + 1 {
               if keys[j] > keys[j + 1] {
                 let temp = keys[j]
                 keys[j] = keys[j + 1]
@@ -249,15 +259,18 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
               }
             }
           }
-          let res = []
+          // 预分配结果数组
+          let res = Array::new(capacity=len)
           for k in keys {
             res.push(Json::String(k))
           }
           [Json::Array(res)]
         }
         Array(arr) => {
-          let res = []
-          for i = 0; i < arr.length(); i = i + 1 {
+          let len = arr.length()
+          // 预分配容量
+          let res = Array::new(capacity=len)
+          for i = 0; i < len; i = i + 1 {
             res.push(Json::Number(i.to_double()))
           }
           [Json::Array(res)]
@@ -403,8 +416,10 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
     Reverse =>
       match json {
         Array(arr) => {
-          let result = []
-          for i = arr.length() - 1; i >= 0; i = i - 1 {
+          let len = arr.length()
+          // 预分配数组容量
+          let result = Array::new(capacity=len)
+          for i = len - 1; i >= 0; i = i - 1 {
             result.push(arr[i])
           }
           [Json::Array(result)]
@@ -416,7 +431,9 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
     Flatten =>
       match json {
         Array(arr) => {
-          let result = []
+          // 预估容量（假设平均每个子数组有2个元素）
+          let estimated_capacity = arr.length() * 2
+          let result = Array::new(capacity=estimated_capacity)
           for item in arr {
             match item {
               Array(sub) =>
@@ -455,9 +472,12 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
       let results = []
       let left_results = eval(json, left)
       // 将左侧的每个结果作为输入传递给右侧查询
+      // 直接 push 而不是 append，减少数组拷贝
       for val in left_results {
         let right_results = eval(val, right)
-        results.append(right_results)
+        for r in right_results {
+          results.push(r)
+        }
       }
       results
     }
@@ -465,8 +485,15 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
     // 序列 ',' (逗号操作符)
     Sequence(left, right) => {
       let results = []
-      results.append(eval(json, left))
-      results.append(eval(json, right))
+      // 直接 push 左右两边的结果，避免 append 的数组拷贝
+      let left_results = eval(json, left)
+      for l in left_results {
+        results.push(l)
+      }
+      let right_results = eval(json, right)
+      for r in right_results {
+        results.push(r)
+      }
       results // 连接两个查询的结果
     }
 
@@ -495,7 +522,11 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
           // 复制当前对象
           current_obj.each(fn(k, v) { new_obj.set(k, v) })
           new_obj.set(key, val)
-          results.append(cartesian(index + 1, new_obj))
+          // 直接 push 递归结果，避免 append
+          let sub_results = cartesian(index + 1, new_obj)
+          for r in sub_results {
+            results.push(r)
+          }
         }
         results
       }
@@ -510,7 +541,10 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
           let results = []
           for item in arr {
             let item_results = eval(item, expr)
-            results.append(item_results)
+            // 直接 push 而不是 append
+            for r in item_results {
+              results.push(r)
+            }
           }
           [Json::Array(results)]
         }
@@ -605,13 +639,15 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
     Sort =>
       match json {
         Array(arr) => {
-          let sorted = []
+          let len = arr.length()
+          // 预分配容量
+          let sorted = Array::new(capacity=len)
           for item in arr {
             sorted.push(item)
           }
           // 冒泡排序
-          for i = 0; i < sorted.length(); i = i + 1 {
-            for j = 0; j < sorted.length() - 1 - i; j = j + 1 {
+          for i = 0; i < len; i = i + 1 {
+            for j = 0; j < len - 1 - i; j = j + 1 {
               if compare_values(sorted[j], sorted[j + 1]) > 0 {
                 let temp = sorted[j]
                 sorted[j] = sorted[j + 1]
@@ -628,8 +664,10 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
     SortBy(expr) =>
       match json {
         Array(arr) => {
+          let len = arr.length()
           // 创建 (原值, 排序键) 的配对数组
-          let pairs : Array[(Json, Json)] = []
+          // 预分配容量
+          let pairs : Array[(Json, Json)] = Array::new(capacity=len)
           for item in arr {
             let key_results = eval(item, expr)
             let key = if key_results.length() > 0 {
@@ -640,8 +678,8 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
             pairs.push((item, key))
           }
           // 冒泡排序
-          for i = 0; i < pairs.length(); i = i + 1 {
-            for j = 0; j < pairs.length() - 1 - i; j = j + 1 {
+          for i = 0; i < len; i = i + 1 {
+            for j = 0; j < len - 1 - i; j = j + 1 {
               let (_, key1) = pairs[j]
               let (_, key2) = pairs[j + 1]
               if compare_values(key1, key2) > 0 {
@@ -652,7 +690,8 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
             }
           }
           // 提取排序后的原值
-          let sorted = []
+          // 预分配容量
+          let sorted = Array::new(capacity=len)
           for pair in pairs {
             let (val, _) = pair
             sorted.push(val)
