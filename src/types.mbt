@@ -67,5 +67,10 @@ pub enum Query {
   FirstExpr(Query) // 获取表达式的第一个结果 'first(expr)'
   Last // 获取最后一个元素或结果 'last' 或 'last(expr)'
   LastExpr(Query) // 获取表达式的最后一个结果 'last(expr)'
+  And(Query, Query) // 逻辑与 'expr1 and expr2'
+  Or(Query, Query) // 逻辑或 'expr1 or expr2'
+  Not(Query) // 逻辑非 'expr | not' 或 'not'
+  ToString // 转换为字符串 'tostring'
+  ToNumber // 转换为数字 'tonumber'
   Exit // 退出 REPL 'exit' 或 'exit()'
 } derive(Show, Eq)

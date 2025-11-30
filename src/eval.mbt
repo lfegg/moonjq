@@ -756,6 +756,102 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
       }
     }
 
+    // 逻辑与 'expr1 and expr2'
+    And(left, right) => {
+      let left_results = eval(json, left)
+      if left_results.length() == 0 {
+        [Json::Bool(false)]
+      } else {
+        let left_val = left_results[0]
+        if is_truthy(left_val) {
+          let right_results = eval(json, right)
+          if right_results.length() == 0 {
+            [Json::Bool(false)]
+          } else {
+            [Json::Bool(is_truthy(right_results[0]))]
+          }
+        } else {
+          [Json::Bool(false)]
+        }
+      }
+    }
+
+    // 逻辑或 'expr1 or expr2'
+    Or(left, right) => {
+      let left_results = eval(json, left)
+      if left_results.length() == 0 {
+        let right_results = eval(json, right)
+        if right_results.length() == 0 {
+          [Json::Bool(false)]
+        } else {
+          [Json::Bool(is_truthy(right_results[0]))]
+        }
+      } else {
+        let left_val = left_results[0]
+        if is_truthy(left_val) {
+          [Json::Bool(true)]
+        } else {
+          let right_results = eval(json, right)
+          if right_results.length() == 0 {
+            [Json::Bool(false)]
+          } else {
+            [Json::Bool(is_truthy(right_results[0]))]
+          }
+        }
+      }
+    }
+
+    // 逻辑非 'expr | not' 或 'not'
+    Not(expr) => {
+      let results = eval(json, expr)
+      if results.length() == 0 {
+        [Json::Bool(true)]
+      } else {
+        [Json::Bool(not(is_truthy(results[0])))]
+      }
+    }
+
+    // 转换为字符串 'tostring'
+    ToString =>
+      match json {
+        String(_) => [json]
+        Number(n) => {
+          let s = n.to_string()
+          // Remove trailing .0 for integers
+          if s.contains(".") {
+            let parts = s.split(".")
+            let parts_array = parts.collect()
+            if parts_array.length() == 2 && parts_array[1].to_string() == "0" {
+              [Json::String(parts_array[0].to_string())]
+            } else {
+              [Json::String(s)]
+            }
+          } else {
+            [Json::String(s)]
+          }
+        }
+        Bool(b) => [Json::String(if b { "true" } else { "false" })]
+        Null => [Json::String("null")]
+        Array(_) => [Json::String(json.to_json_string())]
+        Object(_) => [Json::String(json.to_json_string())]
+      }
+
+    // 转换为数字 'tonumber'
+    ToNumber =>
+      match json {
+        Number(_) => [json]
+        String(s) =>
+          // Try to parse the string as a number
+          match parse_json(s) {
+            Ok(Json::Number(n)) => [Json::Number(n)]
+            _ =>
+              // If that fails, return null or error
+              // jq would throw an error, but we'll return null for now
+              [Json::Null]
+          }
+        _ => [Json::Null]
+      }
+
     // 退出 REPL 'exit' 或 'exit()'
     Exit =>
       // Return a special marker that REPL will recognize

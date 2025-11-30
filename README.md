@@ -12,7 +12,8 @@ MoonJQ 是一个使用 [MoonBit](https://github.com/moonbitlang/moonbit) 编写�
 - **核心 `jq` 功能**:
   - **恒等**: `.`
   - **字段访问**: `.foo`, `.bar`
-  - **数组索引**: `.[0]`, `.[1]`
+  - **数组索引**: `.[0]`, `.[1]`, `.users[0]` (支持负数索引)
+  - **嵌套访问**: `.users[0].name`, `.data.items[1]` (字段、索引任意组合)
   - **数组切片**: `.[1:4]`, `.[-2:]`, `.[:3]` (支持负数索引)
   - **字符串切片**: `.[0:5]` (提取子字符串)
   - **迭代**: `.[]` (迭代数组元素或对象值)
@@ -23,9 +24,11 @@ MoonJQ 是一个使用 [MoonBit](https://github.com/moonbitlang/moonbit) 编写�
   - **构造**: `[ .foo, .bar ]`, `{ "a": .foo }`
   - **比较**: `==`, `!=`, `>`, `<`, `>=`, `<=`
   - **算术运算**: `+`, `-`, `*`, `/`, `%` (支持数字、字符串、数组运算)
+  - **布尔运算**: `and`, `or`, `not` (逻辑与、或、非)
   - **括号**: `(...)` (改变运算优先级)
   - **负数字面量**: `-5`, `-3.14` (支持负数直接使用)
   - **类型函数**: `type` (返回值类型)
+  - **类型转换**: `tostring` (转换为字符串), `tonumber` (转换为数字)
   - **成员检查**: `has(key)` (检查对象键或数组索引是否存在)
   - **包含检查**: `in(array)` (检查值是否在数组中)
   - **条件表达式**: `if-then-else-end`, `if-elif-else-end` (条件分支)
@@ -154,6 +157,26 @@ Goodbye!
 ```bash
 jq> echo '{"name":"MoonBit","version":"0.1"}' | jq '.name'
 "MoonBit"
+```
+
+#### 数组索引和嵌套访问
+
+```bash
+# 数组索引
+jq> echo '{"users":[{"name":"Alice","age":30},{"name":"Bob","age":25}]}' | jq '.users[0]'
+{"name": "Alice", "age": 30}
+
+# 嵌套字段访问
+jq> echo '{"users":[{"name":"Alice","age":30},{"name":"Bob","age":25}]}' | jq '.users[0].name'
+"Alice"
+
+# 多层嵌套
+jq> echo '{"data":{"items":[1,2,3]}}' | jq '.data.items[1]'
+2
+
+# 负数索引
+jq> echo '{"users":[{"name":"Alice","age":30},{"name":"Bob","age":25}]}' | jq '.users[-1].name'
+"Bob"
 ```
 
 #### 数组迭代
@@ -425,6 +448,84 @@ jq> echo '[1,2,3,4,5]' | jq 'last(.[] | select(. > 2))'
 5
 ```
 
+#### 布尔运算
+
+```bash
+# and - 逻辑与
+jq> echo '5' | jq '. > 3 and . < 10'
+true
+
+jq> echo '2' | jq '. > 3 and . < 10'
+false
+
+# or - 逻辑或
+jq> echo '2' | jq '. > 3 or . < 10'
+true
+
+jq> echo '15' | jq '. < 3 or . == 10'
+false
+
+# not - 逻辑非
+jq> echo 'true' | jq 'not'
+false
+
+jq> echo 'false' | jq 'not'
+true
+
+jq> echo 'null' | jq 'not'
+true
+
+jq> echo '0' | jq 'not'
+false
+
+# 组合使用
+jq> echo '[1,2,3,4,5,6,7,8,9,10]' | jq '.[] | select(. > 3 and . < 8)'
+4
+5
+6
+7
+
+jq> echo '{"age":25,"active":true}' | jq '.age > 18 and .active'
+true
+```
+
+#### 类型转换
+
+```bash
+# tostring - 转换为字符串
+jq> echo '123' | jq 'tostring'
+"123"
+
+jq> echo 'true' | jq 'tostring'
+"true"
+
+jq> echo 'null' | jq 'tostring'
+"null"
+
+jq> echo '[1,2,3]' | jq 'tostring'
+"[1, 2, 3]"
+
+# tonumber - 转换为数字
+jq> echo '"456"' | jq 'tonumber'
+456
+
+jq> echo '"3.14"' | jq 'tonumber'
+3.14
+
+jq> echo '123' | jq 'tonumber'
+123
+
+jq> echo '"abc"' | jq 'tonumber'
+null
+
+# 结合使用
+jq> echo '{"price":"19.99"}' | jq '.price | tonumber'
+19.99
+
+jq> echo '{"count":42}' | jq '.count | tostring'
+"42"
+```
+
 #### 从文件读取
 
 ```bash
@@ -496,6 +597,11 @@ moon coverage analyze > uncovered.log
 
 **新功能：**
 
+- ✅ **布尔运算符**：实现了 `and`、`or`、`not` 逻辑运算符
+  - `and`: 逻辑与运算，短路求值
+  - `or`: 逻辑或运算，短路求值
+  - `not`: 逻辑非运算，遵循 jq 的真值规则（`false` 和 `null` 为假值）
+
 - ✅ **数组操作函数**：实现了 14 个强大的数组处理函数
   - `map(expr)`: 对每个元素应用表达式
   - `add`: 求和或连接数组元素
@@ -518,7 +624,8 @@ moon coverage analyze > uncovered.log
 
 **测试：**
 
-- 🎯 所有 91 个单元测试通过
+- 🎯 所有 99 个单元测试通过
+- ✅ 新增 8 个布尔运算符测试用例
 - ✅ 新增 11 个数组操作测试用例
 - 📝 与 jq 行为完全兼容
 

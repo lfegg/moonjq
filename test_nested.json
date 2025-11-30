@@ -1,0 +1,9 @@
+{
+  "users": [
+    {"name": "Alice", "age": 30},
+    {"name": "Bob", "age": 25}
+  ],
+  "data": {
+    "items": [1, 2, 3]
+  }
+}

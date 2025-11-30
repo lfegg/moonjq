@@ -92,6 +92,11 @@ pub enum Query {
   FirstExpr(Query)
   Last
   LastExpr(Query)
+  And(Query, Query)
+  Or(Query, Query)
+  Not(Query)
+  ToString
+  ToNumber
   Exit
 }
 impl Eq for Query

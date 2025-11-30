@@ -267,3 +267,352 @@ test "last_expr" {
     Err(e) => fail("JSON error: " + e)
   }
 }
+
+///|
+test "and_operator" {
+  let json_str = "5"
+  let query_str = ". > 3 and . < 10"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(true)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "and_operator_false" {
+  let json_str = "2"
+  let query_str = ". > 3 and . < 10"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(false)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "or_operator" {
+  let json_str = "2"
+  let query_str = ". > 3 or . < 10"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(true)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "or_operator_false" {
+  let json_str = "15"
+  let query_str = ". < 3 or . == 10"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(false)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "not_operator_true" {
+  let json_str = "true"
+  let query_str = ". | not"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(false)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "not_operator_false" {
+  let json_str = "false"
+  let query_str = ". | not"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(true)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "not_operator_null" {
+  let json_str = "null"
+  let query_str = ". | not"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(true)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "not_operator_number" {
+  let json_str = "0"
+  let query_str = ". | not"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Bool(false)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "array_index_access" {
+  let json_str = "{\"users\":[{\"name\":\"Alice\",\"age\":30},{\"name\":\"Bob\",\"age\":25}]}"
+  let query_str = ".users[0]"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(
+            res,
+            content="[Object({\"name\": String(\"Alice\"), \"age\": Number(30)})]",
+          )
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+/// Type conversion tests
+test "tostring: number" {
+  let json_str = "123"
+  let query_str = "tostring"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"123\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "tostring: bool" {
+  let json_str = "true"
+  let query_str = "tostring"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"true\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "tostring: null" {
+  let json_str = "null"
+  let query_str = "tostring"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"null\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "tostring: array" {
+  let json_str = "[1,2,3]"
+  let query_str = "tostring"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(
+            res,
+            content=(
+              #|[String("[1, 2, 3]")]
+            ),
+          )
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "tonumber: string" {
+  let json_str = "\"456\""
+  let query_str = "tonumber"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Number(456)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "tonumber: string decimal" {
+  let json_str = "\"3.14\""
+  let query_str = "tonumber"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Number(3.14)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "tonumber: number passthrough" {
+  let json_str = "123"
+  let query_str = "tonumber"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Number(123)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "tonumber: invalid string" {
+  let json_str = "\"abc\""
+  let query_str = "tonumber"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Null]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "nested_field_access" {
+  let json_str = "{\"users\":[{\"name\":\"Alice\",\"age\":30},{\"name\":\"Bob\",\"age\":25}]}"
+  let query_str = ".users[0].name"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"Alice\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "deep_nesting" {
+  let json_str = "{\"data\":{\"items\":[1,2,3]}}"
+  let query_str = ".data.items[1]"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[Number(2)]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}
+
+///|
+test "array_negative_index_nested" {
+  let json_str = "{\"users\":[{\"name\":\"Alice\",\"age\":30},{\"name\":\"Bob\",\"age\":25}]}"
+  let query_str = ".users[-1].name"
+  match parse_json(json_str) {
+    Ok(json) =>
+      match parse_query(query_str) {
+        Ok(query) => {
+          let res = eval(json, query)
+          inspect(res, content="[String(\"Bob\")]")
+        }
+        Err(e) => fail("Query error: " + e)
+      }
+    Err(e) => fail("JSON error: " + e)
+  }
+}

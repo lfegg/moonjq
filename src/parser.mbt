@@ -303,13 +303,55 @@ fn Parser::parse_query_expr(self : Parser) -> Result[Query, String] {
 /// 解析序列操作符 (逗号)。
 /// 优先级最低。
 fn Parser::parse_sequence(self : Parser) -> Result[Query, String] {
-  match self.parse_compare() {
+  match self.parse_or() {
     Ok(left) => {
       self.skip_whitespace()
       if self.peek() == Some(',') {
         self.advance()
         match self.parse_sequence() {
           Ok(right) => Ok(Query::Sequence(left, right))
+          Err(e) => Err(e)
+        }
+      } else {
+        Ok(left)
+      }
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+/// 解析逻辑或操作符 (or)。
+fn Parser::parse_or(self : Parser) -> Result[Query, String] {
+  match self.parse_and() {
+    Ok(left) => {
+      self.skip_whitespace()
+      if self.match_keyword("or") {
+        self.pos = self.pos + 2
+        self.skip_whitespace()
+        match self.parse_or() {
+          Ok(right) => Ok(Query::Or(left, right))
+          Err(e) => Err(e)
+        }
+      } else {
+        Ok(left)
+      }
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+/// 解析逻辑与操作符 (and)。
+fn Parser::parse_and(self : Parser) -> Result[Query, String] {
+  match self.parse_compare() {
+    Ok(left) => {
+      self.skip_whitespace()
+      if self.match_keyword("and") {
+        self.pos = self.pos + 3
+        self.skip_whitespace()
+        match self.parse_and() {
+          Ok(right) => Ok(Query::And(left, right))
           Err(e) => Err(e)
         }
       } else {
@@ -869,6 +911,9 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
               Ok(Query::Last)
             }
           }
+          "not" => Ok(Query::Not(Query::Identity))
+          "tostring" => Ok(Query::ToString)
+          "tonumber" => Ok(Query::ToNumber)
           "true" => Ok(Query::Literal(Json::Bool(true)))
           "false" => Ok(Query::Literal(Json::Bool(false)))
           "null" => Ok(Query::Literal(Json::Null))
