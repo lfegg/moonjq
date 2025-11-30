@@ -47,5 +47,8 @@ pub enum Query {
   Length // 获取长度 'length'
   Keys // 获取键名 'keys'
   Type // 获取类型 'type'
+  Has(Query) // 检查对象是否有键或数组是否有索引 'has(key)'
+  In(Query) // 检查值是否在数组中 'in(array)'
+  Conditional(Query, Query, Query) // 条件表达式 'if cond then expr1 else expr2 end'
   Exit // 退出 REPL 'exit' 或 'exit()'
 } derive(Show, Eq)

@@ -72,6 +72,9 @@ pub enum Query {
   Length
   Keys
   Type
+  Has(Query)
+  In(Query)
+  Conditional(Query, Query, Query)
   Exit
 }
 impl Eq for Query

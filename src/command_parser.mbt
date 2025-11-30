@@ -72,10 +72,10 @@ fn parse_jq_file_command(
     return Err("Unclosed quote in query")
   }
 
-  // Extract query (without quotes)
-  let query = after_jq
-    .view(start_offset=1, end_offset=end_quote_pos)
-    .to_string()
+  // Extract query (without quotes and unescape)
+  let query = unescape_string(
+    after_jq.view(start_offset=1, end_offset=end_quote_pos).to_string(),
+  )
 
   // Extract filename (after closing quote)
   if end_quote_pos + 1 < after_jq.length() {
@@ -195,7 +195,7 @@ fn parse_jq_command(cmd : String) -> String? {
 }
 
 ///|
-/// Extract string from quotes (single or double)
+/// Extract string from quotes (single or double) and unescape
 fn extract_quoted_string(s : String) -> String? {
   let trimmed = s.trim(chars=" \t\r\n").to_string()
   if trimmed.length() < 2 {
@@ -206,10 +206,60 @@ fn extract_quoted_string(s : String) -> String? {
 
   // Check for matching quotes
   if (first == '\'' && last == '\'') || (first == '"' && last == '"') {
-    Some(
-      trimmed.view(start_offset=1, end_offset=trimmed.length() - 1).to_string(),
-    )
+    let content = trimmed
+      .view(start_offset=1, end_offset=trimmed.length() - 1)
+      .to_string()
+    // Unescape backslash sequences
+    Some(unescape_string(content))
   } else {
     None
   }
+}
+
+///|
+/// Unescape common backslash sequences
+fn unescape_string(s : String) -> String {
+  let buf = StringBuilder::new()
+  let mut i = 0
+  while i < s.length() {
+    let c = s[i].unsafe_to_char()
+    if c == '\\' && i + 1 < s.length() {
+      let next = s[i + 1].unsafe_to_char()
+      match next {
+        '"' => {
+          buf.write_char('"')
+          i = i + 2
+        }
+        '\'' => {
+          buf.write_char('\'')
+          i = i + 2
+        }
+        '\\' => {
+          buf.write_char('\\')
+          i = i + 2
+        }
+        'n' => {
+          buf.write_char('\n')
+          i = i + 2
+        }
+        't' => {
+          buf.write_char('\t')
+          i = i + 2
+        }
+        'r' => {
+          buf.write_char('\r')
+          i = i + 2
+        }
+        _ => {
+          // Not a recognized escape, keep the backslash
+          buf.write_char(c)
+          i = i + 1
+        }
+      }
+    } else {
+      buf.write_char(c)
+      i = i + 1
+    }
+  }
+  buf.to_string()
 }

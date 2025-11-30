@@ -710,7 +710,8 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
               return Err("Expected ':'")
             }
             self.advance()
-            match self.parse_query_expr() {
+            // Use parse_compare instead of parse_query_expr to avoid comma being parsed as sequence
+            match self.parse_compare() {
               Ok(val) => {
                 fields.push((key, val))
                 self.skip_whitespace()
@@ -769,6 +770,7 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
           "length" => Ok(Query::Length)
           "keys" => Ok(Query::Keys)
           "type" => Ok(Query::Type)
+          "if" => self.parse_conditional()
           "true" => Ok(Query::Literal(Json::Bool(true)))
           "false" => Ok(Query::Literal(Json::Bool(false)))
           "null" => Ok(Query::Literal(Json::Null))
@@ -807,6 +809,42 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
               Err("Expected '(' after select")
             }
           }
+          "has" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              match self.parse_query_expr() {
+                Ok(q) =>
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::Has(q))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after has")
+            }
+          }
+          "in" => {
+            self.skip_whitespace()
+            if self.peek() == Some('(') {
+              self.advance()
+              match self.parse_query_expr() {
+                Ok(q) =>
+                  if self.peek() == Some(')') {
+                    self.advance()
+                    Ok(Query::In(q))
+                  } else {
+                    Err("Expected ')'")
+                  }
+                Err(e) => Err(e)
+              }
+            } else {
+              Err("Expected '(' after in")
+            }
+          }
           _ => Err("Unknown function or identifier: " + ident)
         }
       } else {
@@ -814,6 +852,93 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
       }
     _ => Err("Unexpected token in query")
   }
+}
+
+///|
+/// 解析条件表达式: if cond then expr1 else expr2 end
+/// 也支持 elif 链条: if cond1 then expr1 elif cond2 then expr2 else expr3 end
+fn Parser::parse_conditional(self : Parser) -> Result[Query, String] {
+  // "if" keyword already consumed
+  self.skip_whitespace()
+
+  // Parse condition
+  match self.parse_compare() {
+    Ok(cond) => {
+      self.skip_whitespace()
+
+      // Expect "then"
+      if not(self.match_keyword("then")) {
+        return Err("Expected 'then' in conditional")
+      }
+      self.pos = self.pos + 4
+      self.skip_whitespace()
+
+      // Parse then branch
+      match self.parse_compare() {
+        Ok(then_branch) => {
+          self.skip_whitespace()
+
+          // Check for "elif" or "else"
+          if self.match_keyword("elif") {
+            // Convert elif to nested if: if c1 then e1 elif c2 then e2 else e3 end
+            // becomes: if c1 then e1 else (if c2 then e2 else e3 end) end
+            self.pos = self.pos + 4
+            // Recursively parse elif as a new conditional (it will handle its own "end")
+            match self.parse_conditional() {
+              Ok(elif_chain) =>
+                // The recursive call already consumed "end", so we're done
+                Ok(Query::Conditional(cond, then_branch, elif_chain))
+              Err(e) => Err(e)
+            }
+          } else if self.match_keyword("else") {
+            self.pos = self.pos + 4
+            self.skip_whitespace()
+
+            // Parse else branch
+            match self.parse_compare() {
+              Ok(else_branch) => {
+                self.skip_whitespace()
+
+                // Expect "end"
+                if not(self.match_keyword("end")) {
+                  return Err("Expected 'end' to close conditional")
+                }
+                self.pos = self.pos + 3
+                Ok(Query::Conditional(cond, then_branch, else_branch))
+              }
+              Err(e) => Err(e)
+            }
+          } else {
+            Err("Expected 'elif' or 'else' in conditional")
+          }
+        }
+        Err(e) => Err(e)
+      }
+    }
+    Err(e) => Err(e)
+  }
+}
+
+///|
+/// 检查当前位置是否匹配关键字
+fn Parser::match_keyword(self : Parser, keyword : String) -> Bool {
+  let klen = keyword.length()
+  if self.pos + klen > self.len {
+    return false
+  }
+  let view = self.input.view(start_offset=self.pos, end_offset=self.pos + klen)
+  let matches = view.to_string() == keyword
+  // Also check that next char is not alphanumeric (to avoid matching "then" in "thenx")
+  if matches && self.pos + klen < self.len {
+    let next_char = self.input[self.pos + klen].unsafe_to_char()
+    if (next_char >= 'a' && next_char <= 'z') ||
+      (next_char >= 'A' && next_char <= 'Z') ||
+      (next_char >= '0' && next_char <= '9') ||
+      next_char == '_' {
+      return false
+    }
+  }
+  matches
 }
 
 ///|

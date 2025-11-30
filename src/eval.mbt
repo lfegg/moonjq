@@ -26,12 +26,16 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
     // 数组索引 '[idx]'
     Index(idx) =>
       match json {
-        Array(arr) =>
-          if idx >= 0 && idx < arr.length() {
-            [arr[idx]]
+        Array(arr) => {
+          let len = arr.length()
+          // Support negative indices
+          let actual_idx = if idx < 0 { len + idx } else { idx }
+          if actual_idx >= 0 && actual_idx < len {
+            [arr[actual_idx]]
           } else {
             [Json::Null] // 索引越界返回 null
           }
+        }
         _ => [Json::Null] // 非数组类型索引返回 null
       }
 
@@ -195,6 +199,116 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         Array(_) => [Json::String("array")]
         Object(_) => [Json::String("object")]
       }
+
+    // 检查对象是否有键或数组是否有索引 'has(key)'
+    Has(key_query) =>
+      match json {
+        Object(obj) => {
+          // 对于对象，检查键是否存在
+          let key_results = eval(json, key_query)
+          if key_results.length() > 0 {
+            match key_results[0] {
+              String(key) => [Json::Bool(obj.contains(key))]
+              _ => [Json::Bool(false)]
+            }
+          } else {
+            [Json::Bool(false)]
+          }
+        }
+        Array(arr) => {
+          // 对于数组，检查索引是否存在
+          let key_results = eval(json, key_query)
+          if key_results.length() > 0 {
+            match key_results[0] {
+              Number(n) => {
+                let idx = n.to_int()
+                let len = arr.length()
+                // jq's has() does not accept negative indices
+                if idx < 0 {
+                  [Json::Bool(false)]
+                } else {
+                  [Json::Bool(idx >= 0 && idx < len)]
+                }
+              }
+              _ => [Json::Bool(false)]
+            }
+          } else {
+            [Json::Bool(false)]
+          }
+        }
+        _ => [Json::Bool(false)]
+      }
+
+    // 条件表达式 'if cond then expr1 else expr2 end'
+    Conditional(cond_query, then_query, else_query) => {
+      let cond_results = eval(json, cond_query)
+      if cond_results.length() > 0 {
+        // Check if condition is truthy (not false or null)
+        let is_truthy = match cond_results[0] {
+          Json::Bool(false) => false
+          Json::Null => false
+          _ => true
+        }
+        if is_truthy {
+          eval(json, then_query)
+        } else {
+          eval(json, else_query)
+        }
+      } else {
+        // Empty result is falsy
+        eval(json, else_query)
+      }
+    }
+
+    // 条件表达式 'if cond then expr1 else expr2 end'
+    Conditional(cond_query, then_query, else_query) => {
+      let cond_results = eval(json, cond_query)
+      if cond_results.length() > 0 {
+        // Check if condition is truthy (not false or null)
+        let is_truthy = match cond_results[0] {
+          Json::Bool(false) => false
+          Json::Null => false
+          _ => true
+        }
+        if is_truthy {
+          eval(json, then_query)
+        } else {
+          eval(json, else_query)
+        }
+      } else {
+        // Empty result is falsy
+        eval(json, else_query)
+      }
+    }
+
+    // 检查值是否在数组中 'in(array)'
+    In(array_query) => {
+      let array_results = eval(json, array_query)
+      if array_results.length() > 0 {
+        match array_results[0] {
+          Array(arr) => {
+            // 检查当前json是否在数组中
+            let mut found = false
+            for item in arr {
+              if item == json {
+                found = true
+                break
+              }
+            }
+            [Json::Bool(found)]
+          }
+          Object(obj) =>
+            // 对于对象，检查当前值（作为键）是否存在
+            match json {
+              String(key) => [Json::Bool(obj.contains(key))]
+              _ => [Json::Bool(false)]
+            }
+          _ => [Json::Bool(false)]
+        }
+      } else {
+        [Json::Bool(false)]
+      }
+    }
 
     // 获取键名 'keys'
     Keys =>
