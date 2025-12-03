@@ -260,27 +260,6 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
       }
     }
 
-    // 条件表达式 'if cond then expr1 else expr2 end'
-    Conditional(cond_query, then_query, else_query) => {
-      let cond_results = eval(json, cond_query)
-      if cond_results.length() > 0 {
-        // Check if condition is truthy (not false or null)
-        let is_truthy = match cond_results[0] {
-          Json::Bool(false) => false
-          Json::Null => false
-          _ => true
-        }
-        if is_truthy {
-          eval(json, then_query)
-        } else {
-          eval(json, else_query)
-        }
-      } else {
-        // Empty result is falsy
-        eval(json, else_query)
-      }
-    }
-
     // 检查值是否在数组中 'in(array)'
     In(array_query) => {
       let array_results = eval(json, array_query)

@@ -7,6 +7,14 @@
     "moonbitlang/x/fs": "0.4.37",
     "moonbitlang/x/strconv": "0.4.37"
   },
+  "targets": {
+    "io_ffi_native.mbt": [
+      "native"
+    ],
+    "io_ffi_wasm_gc.mbt": [
+      "wasm-gc"
+    ]
+  },
   "pre-build": [
     {
       "input": "io.c",
