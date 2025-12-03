@@ -586,8 +586,25 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
               self.advance()
               Ok(Query::Iterator)
             } else {
-              // Try to parse slice [start:end] or index [n]
+              // Try to parse slice [start:end], index [n], string index ["key"], or multi-index [n,m,...]
               self.skip_whitespace()
+              
+              // Check if it's a string index like ["foo"]
+              if self.peek() == Some('"') {
+                match self.parse_string() {
+                  Ok(key) => {
+                    self.skip_whitespace()
+                    if self.peek() == Some(']') {
+                      self.advance()
+                      return Ok(Query::Field(key))
+                    } else {
+                      return Err("Expected ']' after string")
+                    }
+                  }
+                  Err(e) => return Err(e)
+                }
+              }
+              
               let mut start : Int? = None
               let mut end : Int? = None
 
@@ -623,6 +640,38 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
                 } else {
                   Err("Expected ']'")
                 }
+              } else if self.peek() == Some(',') {
+                // Multi-index like .[4,2]
+                match start {
+                  Some(first_idx) => {
+                    let indices = [Query::Index(first_idx)]
+                    while self.peek() == Some(',') {
+                      self.advance()
+                      self.skip_whitespace()
+                      match self.parse_number() {
+                        Ok(n) => {
+                          indices.push(Query::Index(n.to_int()))
+                          self.skip_whitespace()
+                        }
+                        Err(_) => return Err("Expected number after ','")
+                      }
+                    }
+                    if self.peek() == Some(']') {
+                      self.advance()
+                      // Build Sequence from indices
+                      let mut result = indices[0]
+                      let mut i = 1
+                      while i < indices.length() {
+                        result = Query::Sequence(result, indices[i])
+                        i = i + 1
+                      }
+                      Ok(result)
+                    } else {
+                      Err("Expected ']'")
+                    }
+                  }
+                  None => Err("Expected index before ','")
+                }
                 // It's a single index
               } else if self.peek() == Some(']') {
                 self.advance()
@@ -631,7 +680,7 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
                   None => Err("Expected index")
                 }
               } else {
-                Err("Expected ']' or ':'")
+                Err("Expected ']' or ':' or ','")
               }
             }
           }
@@ -811,29 +860,44 @@ fn Parser::parse_term(self : Parser) -> Result[Query, String] {
           self.advance()
           break
         }
-        match self.parse_identifier_or_string() {
-          Ok(key) => {
-            self.skip_whitespace()
-            if self.peek() != Some(':') {
-              return Err("Expected ':'")
-            }
-            self.advance()
-            // Use parse_compare instead of parse_query_expr to avoid comma being parsed as sequence
-            match self.parse_compare() {
-              Ok(val) => {
-                fields.push((key, val))
-                self.skip_whitespace()
-                if self.peek() == Some(',') {
-                  self.advance()
-                  self.skip_whitespace()
-                } else if self.peek() == Some('}') {
-                  self.advance()
-                  break
-                } else {
-                  return Err("Expected ',' or '}'")
-                }
+        // Check if key is computed (starts with '(')
+        let key = if self.peek() == Some('(') {
+          self.advance()
+          match self.parse_compare() {
+            Ok(expr) => {
+              self.skip_whitespace()
+              if self.peek() != Some(')') {
+                return Err("Expected ')' after computed key")
               }
-              Err(e) => return Err(e)
+              self.advance()
+              ObjectKey::ComputedKey(expr)
+            }
+            Err(e) => return Err(e)
+          }
+        } else {
+          match self.parse_identifier_or_string() {
+            Ok(key_str) => ObjectKey::StaticKey(key_str)
+            Err(e) => return Err(e)
+          }
+        }
+        self.skip_whitespace()
+        if self.peek() != Some(':') {
+          return Err("Expected ':'")
+        }
+        self.advance()
+        // Use parse_compare instead of parse_query_expr to avoid comma being parsed as sequence
+        match self.parse_compare() {
+          Ok(val) => {
+            fields.push((key, val))
+            self.skip_whitespace()
+            if self.peek() == Some(',') {
+              self.advance()
+              self.skip_whitespace()
+            } else if self.peek() == Some('}') {
+              self.advance()
+              break
+            } else {
+              return Err("Expected ',' or '}'")
             }
           }
           Err(e) => return Err(e)

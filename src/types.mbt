@@ -28,6 +28,13 @@ pub enum Op {
 } derive(Show, Eq)
 
 ///|
+/// 对象字段键类型
+pub enum ObjectKey {
+  StaticKey(String) // 静态键 "key" 或 key
+  ComputedKey(Query) // 计算键 (expr)
+} derive(Show, Eq)
+
+///|
 /// 查询 AST (抽象语法树) 枚举。
 pub enum Query {
   Identity // 恒等查询 '.'
@@ -40,7 +47,7 @@ pub enum Query {
   Pipe(Query, Query) // 管道 'q1 | q2'
   Sequence(Query, Query) // 序列 'q1, q2'
   ArrayConstructor(Query) // 数组构造 '[q]'
-  ObjectConstructor(Array[(String, Query)]) // 对象构造 '{k: v}'
+  ObjectConstructor(Array[(ObjectKey, Query)]) // 对象构造 '{k: v}' or '{(expr): v}'
   Literal(Json) // 字面量 '1', '"s"', 'true'
   Binary(Op, Query, Query) // 二元操作 'a == b'
   Select(Query) // 选择/过滤 'select(q)'

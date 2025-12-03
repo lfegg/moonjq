@@ -61,7 +61,7 @@ test "recursive_descent" {
         Ok(query) => {
           let res = eval(json, query)
           // 应该找到所有的 .b 值
-          inspect(res, content="[Number(1), Number(2)]")
+          inspect(res, content="[Null, Number(1), Null, Number(2), Null]")
         }
         Err(e) => fail("Query error: " + e)
       }
@@ -97,8 +97,8 @@ test "optional_field" {
       match parse_query(query_str) {
         Ok(query) => {
           let res = eval(json, query)
-          // 字段不存在但使用了 ?，应该返回空数组
-          inspect(res, content="[]")
+          // 字段不存在但使用了 ?，应该返回 null（不是空数组）
+          inspect(res, content="[Null]")
         }
         Err(e) => fail("Query error: " + e)
       }
@@ -116,7 +116,7 @@ test "optional_array_index" {
         Ok(query) => {
           let res = eval(json, query)
           // 索引越界但使用了 ?，应该返回空数组
-          inspect(res, content="[]")
+          inspect(res, content="[Null]")
         }
         Err(e) => fail("Query error: " + e)
       }

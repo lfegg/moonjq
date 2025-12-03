@@ -1,0 +1,193 @@
+jq> 
+jq '.foo'
+jq: error: Unknown function or identifier: jq
+jq> 
+echo '{"foo": 42, "bar": "less interesting data"}'
+jq: error: Unknown function or identifier: echo
+jq>
+{“foo”： 42， “bar”： “Less interesting data”} | jq '.foo'
+jq: error: Expected identifier or string
+jq>
+echo '{"foo": 42, "bar": "less interesting data"} ' | jq '.foo'
+42
+jq>
+echo '{"notfoo": true, "alsonotfoo": false}' 
+| jq '.foo'       
+null
+jq>
+echo '{"foo": 42}  {“foo”： 42}' | jq '.["foo"]'  JQ'。[“foo”]'
+jq: error: Expected number or ':'
+jq>
+echo '{"foo": 42}' | jq '.["foo"]'  JQ'。[“fo
+o”]'              
+jq: error: Expected number or ':'
+jq>
+echo '{"foo": 42}' | jq '.["foo"]'           
+jq: error: Expected number or ':'
+jq>
+echo '{"foo": 42}' | jq '.["foo"]'        
+jq: error: Expected number or ':'
+jq>
+echo '{"foo": 42, "bar": "less interesting data"}' | jq '.foo?'
+42
+jq>
+echo '{"notfoo": true, "alsonotfoo": false}' 
+| jq '.foo?'          
+jq> 
+echo '{"notfoo": true, "alsonotfoo": false}' | jq '.foo?'
+jq> 
+echo '{"notfoo": true, "alsonotfoo": false}' 
+| jq '.foo?'
+jq> 
+echo '{"foo": 42}' | jq '.["foo"]?'          
+jq: error: Expected number or ':'
+jq>
+echo '[1,2]' | jq '[.foo?]'          
+[]
+jq>
+echo '[{"name":"JSON", "good":true}, {"name":"XML", "good":false}]' | jq '.[0]'
+{"name": "JSON", "good": true}
+jq>
+echo '[{"name":"JSON", "good":true}, {"name":"XML", "good":false}]' | jq '.[2]'
+null
+jq>
+echo '[{"name":"JSON", "good":true}, {"name":"XML", "good":false}]' | jq '.[0]'
+{"name": "JSON", "good": true}
+jq>
+echo '[1,2,3]' | jq '.[-2]'                  
+2                                  
+jq>
+echo '[{"name":"JSON", "good":true}, {"name":"XML", "good":false}]' | jq '.[2]'
+null
+jq>
+echo '[{"name":"JSON", "good":true}, {"name":"XML", "good":false}]' | jq '.[0]'
+{"name": "JSON", "good": true}
+jq>
+echo '["a","b","c","d","e"]' | jq '.[2:4]'   
+["c", "d"]                          
+jq>
+echo '"abcdefghi"' | jq '.[2:4]'          
+"cd"
+jq>
+echo '  ["a","b","c","d","e"]' | jq '.[:3]'
+["a", "b", "c"]
+jq>
+echo '["a","b","c","d","e"]' | jq '.[-2:]'   
+["d", "e"]
+jq>
+echo '  [{"name":"JSON", "good":true}, {"name":"XML", "good":false}]' | jq '.[]'
+{"name": "JSON", "good": true}
+{"name": "XML", "good": false}
+jq>
+echo '[]' | jq '.[]'                         
+jq>                                
+echo '{"foo":[1,2,3]}' | jq '.foo[]'
+1
+2
+3
+jq>
+echo '  {"a": 1, "b": 1}' | jq '.[]'
+1
+1
+jq>
+echo '{"foo": 42, "bar": "something else", "baz": true}' | jq '.foo, .bar'
+42
+"something else"
+jq>
+echo '{"user":"stedolan", "projects": ["jq", "wikiflow"]}' | jq '.user, .projects[]'  
+"stedolan"
+"jq"
+"wikiflow"
+jq>
+echo '["a","b","c","d","e"]' | jq '.[4,2]'   
+jq: error: Expected ']' or ':'               
+jq>                   
+echo '[{"name":"JSON", "good":true}, {"name":"XML", "good":false}]' | jq '.[] | .name'
+"JSON"
+"XML"
+jq>
+echo '1' | jq '(. + 2) * 5'                  
+15                                           
+jq>
+echo '{"user":"stedolan", "projects": ["jq", "wikiflow"]}' | jq '[.user, .projects[]]'    
+["stedolan", "jq", "wikiflow"]
+jq>
+echo '[1, 2, 3]' | jq '[ .[] | . * 2]'       
+[2, 4, 6]                                    
+jq>
+echo '{"user":"stedolan","titles":["JQ Primer", "More JQ"]}' | jq '{user, title: .titles[]
+}'
+jq: error: Expected ':'
+jq>
+echo '{"user":"stedolan","titles":["JQ Primer", "More JQ"]}' | jq '{(.user): .titles}'    
+jq: error: Expected identifier or string
+jq>
+echo '[[{"a":1}]]' | jq '.. | .a?'           
+1                                            
+jq>
+echo '{"a": 7}' | jq '.a + 1'     
+8
+jq>
+echo '{"a": [1,2], "b": [3,4]}' | jq '.a + .b
+'
+[1, 2, 3, 4]
+jq>
+echo '{"a": 1}' | jq '.a + null'             
+null
+jq>
+echo '{}' | jq '.a + 1'         
+null
+jq>
+echo 'null' | jq '{a: 1} + {b: 2} + {c: 3} + 
+{a: 42}'
+{"a": 42, "b": 2, "c": 3}
+jq>
+echo '{"a":3}' | jq '4 - .a'                 
+1       
+jq>
+echo '["xml", "yaml", "json"]' | jq '. - ["xml", "yaml"]'   
+["json"]
+jq>
+echo '5'  | jq '10 / . * 3'
+6
+jq>
+echo '"a, b,c,d, e"'  | jq '. / ", "'
+["a, b,c,d, e"]
+jq>
+echo 'null'  | jq '{"k": {"a": 1, "b": 2}} * {"k": {"a": 0,"c": 3}}'
+{"k": {"a": 0, "c": 3}}
+jq>
+echo '[1,0,-1]'  | jq '.[] | (1 / .)?'                      
+1       
+null
+-1
+jq>
+echo '[-10, -1.1, -1e-1]'  | jq 'map(abs)'
+jq: error: Unknown function or identifier: abs
+jq>
+echo '[[1,2], "string", {"a":2}, null, -5]'  | jq '.[] | len
+gth'
+2
+6
+1
+0
+-5
+jq>
+echo '"\u03bc"' | jq 'utf8bytelength'                       
+jq: error: Unknown function or identifier: utf8bytelength
+jq>
+echo '\u03bc' | jq 'utf8bytelength'
+Error parsing JSON: Unexpected character: \
+jq>
+cleawr
+jq: error: Unknown function or identifier: cleawr
+jq>
+clear
+jq: error: Unknown function or identifier: clear
+jq>
+echo '{"abc": 1, "abcd": 2, "Foo": 3}\' | jq 'keys'
+["Foo", "abc", "abcd"]
+jq>
+echo '[42,3,35]' | jq 'keys'
+[0, 1, 2]
+jq>

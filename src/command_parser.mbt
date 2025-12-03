@@ -18,17 +18,21 @@ pub fn parse_command_line(
 ) -> Result[(JsonSource, String), String] {
   let trimmed = input.trim(chars=" \t\r\n").to_string()
 
-  // Priority 1: Check if it's jq 'query' filename format first
-  // This takes priority over pipe detection because the query might contain pipes
-  if trimmed.has_prefix("jq ") {
-    // Parse: jq 'query' filename or jq '.query' filename
-    parse_jq_file_command(trimmed)
-  } else if trimmed.contains("|") {
-    // Check if it looks like a pipe command (echo ... | jq ...)
+  // Priority 1: Check if it's just "echo '...'" (output JSON)
+  if trimmed.has_prefix("echo ") && not(trimmed.contains("|")) {
+    match parse_echo_command(trimmed) {
+      Some(json_str) => Ok((JsonSource::JsonString(json_str), "."))
+      None => Err("Invalid echo command")
+    }
+  } else if trimmed.contains("|") && trimmed.contains("jq") {
+    // Priority 2: Check if it's a pipe command (echo ... | jq ...)
     parse_pipe_command(trimmed)
+  } else if trimmed.has_prefix("jq ") {
+    // Priority 3: Check if it's jq 'query' filename format
+    parse_jq_file_command(trimmed)
   } else {
-    // Just a query
-    Ok((JsonSource::JsonString("{}"), trimmed))
+    // Just a query - not a shell command
+    Err("Not a shell command")
   }
 }
 

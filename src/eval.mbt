@@ -122,18 +122,10 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
 
     // 可选操作符 'query?'
     Optional(q) => {
-      // 可选操作符会捕获错误，如果查询失败则返回空数组而不是报错
-      // 在当前实现中，我们的 eval 不会抛出异常，而是返回 Null
-      // 所以可选操作符主要是过滤掉 Null 结果
-      let results = eval(json, q)
-      let filtered = []
-      for r in results {
-        match r {
-          Null => () // 过滤掉 null
-          _ => filtered.push(r)
-        }
-      }
-      filtered
+      // 可选操作符会捕获错误，但仍然返回 null 值
+      // 它的作用是让操作不会因为类型错误而失败，而是返回结果（包括 null）
+      // 例如 .foo? 在对象没有 foo 字段时返回 null，而不是报错
+      eval(json, q)
     }
 
     // 迭代器 '.[]'
@@ -1026,7 +1018,7 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
       [Json::Array(results)] // 将查询结果收集到一个新数组中
     }
 
-    // 对象构造 '{ key: val, ... }'
+    // 对象构造 '{ key: val, ... }' or '{(expr): val}'
     ObjectConstructor(fields) => {
       // 递归函数处理对象字段的笛卡尔积组合
       // 因为每个字段的值可能是一个产生多个结果的查询
@@ -1037,15 +1029,34 @@ pub fn eval(json : Json, query : Query) -> Array[Json] {
         if index >= fields.length() {
           return [Json::Object(current_obj)]
         }
-        let (key, q) = fields[index]
+        let (key_type, q) = fields[index]
+        
+        // 计算键（如果是计算键）
+        let keys = match key_type {
+          ObjectKey::StaticKey(k) => [k]
+          ObjectKey::ComputedKey(key_query) => {
+            let key_results = eval(json, key_query)
+            let key_strs = []
+            for k in key_results {
+              match k {
+                Json::String(s) => key_strs.push(s)
+                _ => key_strs.push(k.to_json_string())
+              }
+            }
+            key_strs
+          }
+        }
+        
         let val_results = eval(json, q)
         let results = []
-        for val in val_results {
-          let new_obj = Map::new()
-          // 复制当前对象
-          current_obj.each(fn(k, v) { new_obj.set(k, v) })
-          new_obj.set(key, val)
-          results.append(cartesian(index + 1, new_obj))
+        for key in keys {
+          for val in val_results {
+            let new_obj = Map::new()
+            // 复制当前对象
+            current_obj.each(fn(k, v) { new_obj.set(k, v) })
+            new_obj.set(key, val)
+            results.append(cartesian(index + 1, new_obj))
+          }
         }
         results
       }
@@ -1080,6 +1091,8 @@ fn apply_binary_op(op : Op, l : Json, r : Json) -> Json {
     // 算术操作，返回数字或 null
     Add =>
       match (l, r) {
+        (Null, _) => r // null + x = x
+        (_, Null) => l // x + null = x
         (Number(a), Number(b)) => Json::Number(a + b)
         (String(a), String(b)) => Json::String(a + b) // 字符串连接
         (Array(a), Array(b)) => {
@@ -1135,10 +1148,7 @@ fn apply_binary_op(op : Op, l : Json, r : Json) -> Json {
           }
         (Object(obj), Object(other)) => {
           // 对象递归合并
-          let result = Map::new()
-          obj.each(fn(k, v) { result.set(k, v) })
-          other.each(fn(k, v) { result.set(k, v) })
-          Json::Object(result)
+          Json::Object(merge_objects(obj, other))
         }
         _ => Json::Null
       }
@@ -1281,4 +1291,26 @@ fn compare_json(l : Json, r : Json) -> Int {
 ///|
 fn compare_values(l : Json, r : Json) -> Int {
   compare_json(l, r)
+}
+
+///|
+/// 递归合并两个 JSON 对象
+fn merge_objects(a : Map[String, Json], b : Map[String, Json]) -> Map[String, Json] {
+  let result = Map::new()
+  // 先复制 a 的所有键值对
+  a.each(fn(k, v) { result.set(k, v) })
+  // 然后处理 b 的键值对
+  b.each(fn(k, v) {
+    match (a.get(k), v) {
+      (Some(Json::Object(a_obj)), Json::Object(b_obj)) => {
+        // 如果两边都是对象，递归合并
+        result.set(k, Json::Object(merge_objects(a_obj, b_obj)))
+      }
+      _ => {
+        // 否则用 b 的值覆盖
+        result.set(k, v)
+      }
+    }
+  })
+  result
 }
