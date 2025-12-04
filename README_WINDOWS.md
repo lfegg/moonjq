@@ -1,6 +1,6 @@
 # moonjq - Windows 用户指南
 
-一个用 MoonBit 编写的 JSON 处理工具，灵感来自 [jq](https://jqlang.github.io/jq/)。
+一个用 MoonBit 编写的 JSON 处理工具，jq的MoonBit命令行工具实现
 
 > **注意**：本文档专门针对 Windows PowerShell 用户编写。如果您使用 Linux/macOS，请参考 [README.md](README.md)。
 

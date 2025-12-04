@@ -1,6 +1,8 @@
 # MoonJQ
 
-MoonJQ 是一个使用 [MoonBit](https://github.com/moonbitlang/moonbit) 编写的轻量级、可移植的 JSON 处理器。它的灵感来自于流行的命令行工具 `jq`。
+MoonJQ 是一个使用 [MoonBit](https://github.com/moonbitlang/moonbit) 编写的轻量级、可移植的 JSON 处理器。
+
+由于操作系统问题，兼容性一般，推荐尝试command-style分支的版本。
 
 ## 特性
 
