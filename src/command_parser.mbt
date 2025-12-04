@@ -24,8 +24,9 @@ pub fn parse_command_line(
       Some(json_str) => Ok((JsonSource::JsonString(json_str), "."))
       None => Err("Invalid echo command")
     }
-  } else if trimmed.contains("|") && trimmed.contains("jq") {
+  } else if trimmed.contains(" | jq ") || trimmed.has_suffix("| jq") {
     // Priority 2: Check if it's a pipe command (echo ... | jq ...)
+    // More precise check: requires " | jq " or ends with "| jq"
     parse_pipe_command(trimmed)
   } else if trimmed.has_prefix("jq ") {
     // Priority 3: Check if it's jq 'query' filename format
